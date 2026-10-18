@@ -1,0 +1,12 @@
+# Everything Joseph's Board needs, installed by ./install.sh into its own private Python
+# environment (.venv) -- nothing is installed into the Mac's system Python.
+# Needs Python 3.10 or newer (ib_async requires it); 3.13 from python.org is recommended.
+websockets>=13,<18
+ib_async>=2.0,<3
+webull-openapi-python-sdk>=3.0,<4
+pandas>=2.0
+numpy>=1.24
+PyYAML>=6.0
+certifi                  # up-to-date certificates for secure connections (Webull)
+matplotlib>=3.7          # only for the equity-curve PNG a backtest saves
+curl_cffi                # asks websites like Chrome does (Yahoo, FRED and others block plain Python)

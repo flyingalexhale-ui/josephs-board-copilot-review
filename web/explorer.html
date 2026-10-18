@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · Report Card explorer</title>
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- Report Card explorer, backtests and Monte Carlo (jb-explore): /api/plus/rc_explore in gateway/rc_explore.py -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid #2f7a44;padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  header a{color:var(--cyan);text-decoration:none;font-size:12px;margin-left:12px;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:18px 4px 8px;}
+  .intro{color:var(--dim);font-size:12px;line-height:1.6;margin:10px 4px;} .intro b{color:var(--white);font-weight:600;}
+  .box{background:var(--panel);border:1px solid var(--line-bright);border-radius:10px;padding:12px;margin-bottom:10px;}
+  .tabs2{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+  .tabs2 button{background:transparent;border:1px solid var(--line-bright);color:#8fd8ff;font:inherit;font-size:12px;padding:6px 12px;border-radius:14px;cursor:pointer;min-height:32px;}
+  .tabs2 button.on{border-color:#39e07a;color:#39e07a;}
+  .f{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;}
+  .f label{display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:var(--dim);letter-spacing:.04em;text-transform:uppercase;}
+  select,input{background:#04101f;color:var(--white);border:1px solid var(--line-bright);border-radius:6px;font:inherit;font-size:12px;padding:6px 8px;min-height:32px;}
+  .btn{background:transparent;border:1px solid var(--line-bright);color:#8fd8ff;font:inherit;font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;min-height:34px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:6px 0;}
+  .kpi .l{color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase;} .kpi .v{font-size:20px;font-weight:700;line-height:1.2;} .kpi .s{color:var(--dim);font-size:11px;}
+  .good{color:var(--green);} .mid{color:var(--amber);} .bad{color:var(--red);} .grey{color:var(--dim);}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th:first-child,td:first-child{text-align:left;}
+  th{color:var(--dim);font-weight:500;font-size:11px;}
+  .tw{overflow-x:auto;margin:6px 0;} .tw.tall{max-height:420px;overflow-y:auto;}
+  .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:10px;} .two > *{min-width:0;}
+  .f label{max-width:100%;} select{max-width:100%;}
+  .muted{color:var(--dim);font-size:11px;line-height:1.5;}
+  svg.big{display:block;width:100%;height:200px;} svg.mc{display:block;width:100%;height:120px;}
+  .ok{color:var(--green);} .no{color:var(--red);}
+  .bar{display:inline-block;height:8px;border-radius:2px;background:#2f7a44;vertical-align:middle;margin-left:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>REPORT CARD EXPLORER</h1><div><a href="report.html">Report Card</a><a href="./">Full board</a><a href="phone.html">Phone</a></div></header>
+  <p class="intro">Every call the board has written down, and how it turned out. <b>Live</b> = calls saved since install; <b>Replay</b> = the same
+    rules re-run on up to 2 years of past prices (price-only features, refreshed each night). <b>Backtest</b> treats each up/down call as a trade
+    and <b>Monte Carlo</b> shows the range of results the same edge could have given. Research only, not advice.</p>
+  <div class="tabs2" id="mode"><button data-m="explore" class="on">Explore calls</button><button data-m="bt">Backtest and Monte Carlo</button></div>
+
+  <div id="explore">
+    <div class="box f">
+      <label>Feature<select id="fFeat"></select></label>
+      <label>Source<select id="fSrc"><option value="live">Live</option><option value="replay">Replay (2 yrs)</option></select></label>
+      <label>Time point<select id="fH"></select></label>
+      <label>Kind of call<select id="fSub"><option value="">All</option></select></label>
+      <label>Symbol<select id="fSym"><option value="">All</option></select></label>
+      <label>Session<select id="fSess"><option value="">All</option><option value="after-hours">After-hours</option><option value="overnight">Overnight</option><option value="pre-market">Pre-market</option><option value="regular">Regular</option><option value="closed">Closed</option></select></label>
+      <label>From<input type="date" id="fFrom"></label>
+      <label>To<input type="date" id="fTo"></label>
+      <button class="btn" id="csv">Download CSV</button>
+    </div>
+    <div id="ex"><p class="muted">Loading…</p></div>
+  </div>
+
+  <div id="bt" style="display:none">
+    <div class="box f">
+      <label>Source<select id="bSrc"><option value="live">Live</option><option value="replay">Replay (2 yrs)</option></select></label>
+      <label>Time point<select id="bH"><option value="">Each feature's main one</option><option value="m60">1 hour</option><option value="close">Next close</option><option value="d1">1 day</option><option value="d5">5 days</option><option value="d20">20 days</option></select></label>
+      <label>Cost per trade %<input id="bCost" type="number" step="0.01" min="0" max="1" value="0.05" style="width:90px"></label>
+      <button class="btn" id="bGo">Run</button>
+      <button class="btn" id="bCsv">Download CSV</button>
+    </div>
+    <div id="btOut"><p class="muted">Loading…</p></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var API = '/api/plus/rc_explore', F = [], LAST = null, BT = null;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function getJ(u) { return fetch(u, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { if (r.status === 401) { location.href = '/login?next=/explorer.html'; } return r.json(); }); }
+  function cls(p, n) { return p == null || n < 20 ? 'grey' : p >= 55 ? 'good' : p >= 45 ? 'mid' : 'bad'; }
+  function pc(v, d) { return v == null ? '–' : (v > 0 ? '+' : '') + v.toFixed(d == null ? 2 : d) + '%'; }
+  function csv(name, cols, rows) {
+    var q = function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var txt = [cols.join(',')].concat(rows.map(function (r) { return r.map(q).join(','); })).join('\n');
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv' })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  }
+  try { var saved = JSON.parse(localStorage.getItem('jbRcx') || '{}'); } catch (e) { saved = {}; }
+  function save() { try { localStorage.setItem('jbRcx', JSON.stringify({ f: $('fFeat').value, s: $('fSrc').value })); } catch (e) {} }
+
+  $('mode').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    [].forEach.call($('mode').children, function (x) { x.classList.toggle('on', x === b); });
+    $('explore').style.display = b.dataset.m === 'explore' ? '' : 'none'; $('bt').style.display = b.dataset.m === 'bt' ? '' : 'none';
+    if (b.dataset.m === 'bt' && !BT) loadBt();
+  });
+
+  // ---------------------------------------------------------------- explore
+  function statRow(x, first) {
+    return '<tr><td>' + esc(first) + '</td><td>' + x.n + '</td><td class="' + cls(x.pct, x.n) + '">' + (x.pct == null ? '–' : x.pct + '%') +
+      (x.pct != null ? '<span class="bar" style="width:' + Math.round(x.pct * 0.6) + 'px;background:' + (x.pct >= 50 ? '#2f7a44' : '#7a2f2f') + '"></span>' : '') + '</td>' +
+      '<td>' + (x.ci ? x.ci[0] + '-' + x.ci[1] + '%' : '–') + '</td><td>' + pc(x.avg_win) + '</td><td>' + pc(x.avg_loss) + '</td><td>' + pc(x.expect, 3) + '</td><td>' + (x.pf == null ? '–' : x.pf) + '</td></tr>';
+  }
+  var HEAD = '<tr><th></th><th>Calls</th><th>Right</th><th title="95% range for the hit rate: with few calls it is wide">Likely range</th><th>Avg when right</th><th>Avg when wrong</th><th title="Average result per call the way it pointed">Per call</th><th title="Gains divided by losses; over 1 = made more than lost">Profit factor</th></tr>';
+  function table(title, rows) {
+    if (!rows || !rows.length) return '';
+    return '<div class="box"><h2 style="margin:0 0 4px">' + esc(title) + '</h2><div class="tw"><table>' + HEAD + rows.map(function (x) { return statRow(x, x.key); }).join('') + '</table></div></div>';
+  }
+  function monthChart(rows) {
+    rows = (rows || []).filter(function (r) { return r.pct != null; });
+    if (rows.length < 2) return '';
+    var W = 600, H = 200, pad = 26, X = function (i) { return pad + i * (W - pad - 6) / (rows.length - 1); }, Y = function (v) { return 10 + (100 - v) * (H - 34) / 100; };
+    var s = '<svg class="big" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><line x1="' + pad + '" x2="' + W + '" y1="' + Y(50) + '" y2="' + Y(50) + '" stroke="#6f8aa3" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>';
+    [0, 50, 100].forEach(function (v) { s += '<text x="0" y="' + (Y(v) + 4) + '" fill="#6f8aa3" font-size="10">' + v + '%</text>'; });
+    s += '<path d="' + rows.map(function (r, i) { return (i ? 'L' : 'M') + X(i) + ' ' + Y(r.pct); }).join('') + '" fill="none" stroke="#39e07a" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+    s += '<text x="' + pad + '" y="' + (H - 4) + '" fill="#6f8aa3" font-size="10">' + esc(rows[0].key) + '</text><text x="' + (W - 4) + '" y="' + (H - 4) + '" fill="#6f8aa3" font-size="10" text-anchor="end">' + esc(rows[rows.length - 1].key) + '</text>';
+    return '<div class="box"><h2 style="margin:0 0 4px">Right, month by month</h2>' + s + '</svg></div>';
+  }
+  function drawEx(d) {
+    LAST = d;
+    if (d.error) { $('ex').innerHTML = '<p class="muted">' + esc(d.error) + '</p>'; return; }
+    var hs = $('fH'); if (!hs.options.length || hs.dataset.f !== d.feature) {
+      hs.innerHTML = d.horizons.map(function (h) { return '<option value="' + h[0] + '"' + (h[0] === d.h ? ' selected' : '') + '>' + esc(h[1]) + '</option>'; }).join(''); hs.dataset.f = d.feature; }
+    var keep = function (sel, list) { var v = sel.value; sel.innerHTML = '<option value="">All</option>' + list.map(function (s) { return '<option' + (s === v ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join(''); };
+    keep($('fSub'), d.subs); keep($('fSym'), d.syms);
+    var s = d.summary;
+    var h = '<div class="box"><b>' + esc(d.name) + '</b> <span class="muted">' + esc(d.what) + '</span><div class="kpis">' +
+      '<div class="kpi"><div class="l">Calls shown</div><div class="v">' + d.count + '</div><div class="s">' + s.n + ' graded at ' + esc((d.horizons.filter(function (x) { return x[0] === d.h; })[0] || [0, ''])[1]) + '</div></div>' +
+      '<div class="kpi"><div class="l">Right</div><div class="v ' + cls(s.pct, s.n) + '">' + (s.pct == null ? '–' : s.pct + '%') + '</div><div class="s">' + (s.ci ? 'likely ' + s.ci[0] + '-' + s.ci[1] + '%' : 'needs 10+ graded') + '</div></div>' +
+      '<div class="kpi"><div class="l">Per call</div><div class="v">' + pc(s.expect, 3) + '</div><div class="s">avg result the way it pointed</div></div>' +
+      '<div class="kpi"><div class="l">Profit factor</div><div class="v">' + (s.pf == null ? '–' : s.pf) + '</div><div class="s">over 1 = more gained than lost</div></div></div>' +
+      (d.src === 'replay' ? '<p class="muted">Replay calls are daily and not split by symbol or session.' + (d.count ? '' : ' Nothing yet: the replay keeps its calls from tonight\'s run on (or press Run replay now on the Report Card).') + '</p>' : '') + '</div>';
+    h += table('Each time point', d.by_h) + '<div class="two">' + table('By kind of call', d.by_sub) + table('By session', d.by_session) + '</div>' +
+      '<div class="two">' + table('By symbol', d.by_sym) + table('By weekday', d.by_dow) + '</div>' + monthChart(d.by_month);
+    var cols = d.columns, rows = d.rows.slice(-300).reverse();
+    h += '<div class="box"><h2 style="margin:0 0 4px">The calls (newest first' + (d.rows.length > 300 ? ', last 300 here; Download CSV has all ' + d.rows.length : '') + ')</h2><div class="tw tall"><table><tr>' +
+      cols.map(function (c) { return '<th>' + esc(c.replace(/_/g, ' ')) + '</th>'; }).join('') + '</tr>' +
+      rows.map(function (r) { return '<tr>' + r.map(function (v, i) {
+        if (i === r.length - 1) return '<td class="' + (v === 1 ? 'ok' : v === 0 ? 'no' : 'grey') + '">' + (v === 1 ? '✓' : v === 0 ? '✗' : '–') + '</td>';
+        if (i === 4) return '<td>' + (v > 0 ? '▲ up' : v < 0 ? '▼ down' : '–') + '</td>';
+        if (i >= 8 && v != null) return '<td class="' + (v > 0 ? 'ok' : v < 0 ? 'no' : '') + '">' + pc(v) + '</td>';
+        return '<td>' + esc(v == null ? '' : v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>' +
+      (d.truncated ? '<p class="muted">Only the newest 20,000 calls are listed; narrow the dates to see older ones.</p>' : '') + '</div>';
+    $('ex').innerHTML = h;
+  }
+  function loadEx() {
+    save();
+    var q = ['feature', $('fFeat').value, 'src', $('fSrc').value, 'h', $('fH').dataset.f === $('fFeat').value ? $('fH').value : '', 'sub', $('fSub').value,
+      'sym', $('fSym').value, 'session', $('fSess').value, 'from', $('fFrom').value, 'to', $('fTo').value];
+    var u = API + '/calls?' + q.reduce(function (a, v, i) { return i % 2 ? a : a + (a ? '&' : '') + v + '=' + encodeURIComponent(q[i + 1] || ''); }, '');
+    $('ex').innerHTML = '<p class="muted">Loading…</p>';
+    getJ(u).then(drawEx).catch(function (e) { $('ex').innerHTML = '<p class="muted">' + esc(e.message) + '</p>'; });
+  }
+  ['fFeat', 'fSrc'].forEach(function (id) { $(id).addEventListener('change', function () { $('fSub').value = ''; $('fSym').value = ''; loadEx(); }); });
+  ['fH', 'fSub', 'fSym', 'fSess', 'fFrom', 'fTo'].forEach(function (id) { $(id).addEventListener('change', loadEx); });
+  $('csv').onclick = function () { if (LAST && LAST.rows) csv('report-card-' + LAST.feature + '-' + LAST.src + '.csv', LAST.columns, LAST.rows); };
+  getJ(API + '/features').then(function (d) {
+    F = d.features || [];
+    $('fFeat').innerHTML = F.map(function (f) { return '<option value="' + f.key + '">' + esc(f.name) + '</option>'; }).join('');
+    if (saved.f && F.some(function (f) { return f.key === saved.f; })) $('fFeat').value = saved.f;
+    if (saved.s) $('fSrc').value = saved.s;
+    var m = /[?&]f=([a-z0-9_]+)/.exec(location.search); if (m) $('fFeat').value = m[1];
+    loadEx();
+  });
+
+  // ---------------------------------------------------------------- backtest and Monte Carlo
+  function curve(pts) {
+    if (!pts || pts.length < 2) return '';
+    var W = 600, H = 200, vs = pts.map(function (p) { return p[1]; }), lo = Math.min(0, Math.min.apply(null, vs)), hi = Math.max(0, Math.max.apply(null, vs));
+    if (hi === lo) hi = lo + 1;
+    var X = function (i) { return 40 + i * (W - 46) / (pts.length - 1); }, Y = function (v) { return 8 + (hi - v) * (H - 30) / (hi - lo); };
+    var s = '<svg class="big" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><line x1="40" x2="' + W + '" y1="' + Y(0) + '" y2="' + Y(0) + '" stroke="#6f8aa3" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>' +
+      '<text x="0" y="' + (Y(hi) + 8) + '" fill="#6f8aa3" font-size="10">' + pc(hi, 1) + '</text><text x="0" y="' + Y(lo) + '" fill="#6f8aa3" font-size="10">' + pc(lo, 1) + '</text>' +
+      '<path d="' + pts.map(function (p, i) { return (i ? 'L' : 'M') + X(i) + ' ' + Y(p[1]); }).join('') + '" fill="none" stroke="' + (vs[vs.length - 1] >= 0 ? '#39e07a' : '#ff6b5e') + '" stroke-width="2" vector-effect="non-scaling-stroke"/>' +
+      '<text x="40" y="' + (H - 4) + '" fill="#6f8aa3" font-size="10">' + esc(pts[0][0]) + '</text><text x="' + (W - 4) + '" y="' + (H - 4) + '" fill="#6f8aa3" font-size="10" text-anchor="end">' + esc(pts[pts.length - 1][0]) + '</text></svg>';
+    return s;
+  }
+  function hist(mc) {
+    if (!mc || !mc.hist) return '';
+    var W = 600, H = 120, mx = Math.max.apply(null, mc.hist.map(function (b) { return b[1]; })), bw = (W - 10) / mc.hist.length;
+    return '<svg class="mc" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' + mc.hist.map(function (b, i) {
+      var h = (H - 20) * b[1] / mx; return '<rect x="' + (5 + i * bw) + '" y="' + (H - 16 - h) + '" width="' + (bw - 2) + '" height="' + h + '" fill="' + (b[0] < 0 ? '#7a2f2f' : '#2f7a44') + '"/>'; }).join('') +
+      '<text x="5" y="' + (H - 3) + '" fill="#6f8aa3" font-size="10">' + pc(mc.hist[0][0], 0) + '</text><text x="' + (W - 5) + '" y="' + (H - 3) + '" fill="#6f8aa3" font-size="10" text-anchor="end">' + pc(mc.hist[mc.hist.length - 1][0], 0) + '</text></svg>';
+  }
+  function mcText(mc) {
+    if (!mc) return '<p class="muted">Monte Carlo needs at least 20 days of graded calls.</p>';
+    return '<p class="muted"><b style="color:#fff">Monte Carlo</b> (' + mc.runs + ' reshuffles of the days): middle result ' + pc(mc.p50, 1) + ', 9 in 10 runs between ' + pc(mc.p5, 1) + ' and ' + pc(mc.p95, 1) +
+      '. Ended down in ' + mc.lose_pct + '% of runs. Typical worst drop ' + pc(mc.dd_p50, 1) + ' (1 in 20 runs worse than ' + pc(mc.dd_p5, 1) + ').</p>' + hist(mc);
+  }
+  function drawBt(d) {
+    BT = d;
+    if (!d || !d.features) { $('btOut').innerHTML = '<p class="muted">' + (d && d.running ? 'Running… check back in a minute.' : 'No backtest yet.') + '</p>'; return; }
+    var w = d.whole, h = '';
+    if (w) h += '<div class="box"><b>The board as a whole</b> <span class="muted">' + esc(w.note) + '</span><div class="kpis">' +
+      '<div class="kpi"><div class="l">Total</div><div class="v ' + (w.total >= 0 ? 'good' : 'bad') + '">' + pc(w.total, 1) + '</div><div class="s">' + w.days + ' days</div></div>' +
+      '<div class="kpi"><div class="l">Worst drop</div><div class="v">' + pc(w.max_dd, 1) + '</div><div class="s">from a high</div></div>' +
+      '<div class="kpi"><div class="l">Days up</div><div class="v">' + (w.win_rate == null ? '–' : w.win_rate + '%') + '</div><div class="s">of trading days</div></div>' +
+      '<div class="kpi"><div class="l">Sharpe</div><div class="v">' + (w.sharpe == null ? '–' : w.sharpe) + '</div><div class="s">return per unit of risk, yearly; over 1 is good</div></div></div>' +
+      curve(w.curve) + mcText(w.mc) + '</div>';
+    h += '<div class="box"><h2 style="margin:0 0 4px">Each feature (best first)</h2><div class="tw"><table><tr><th>Feature</th><th>Time point</th><th>Trades</th><th>Right</th><th>Total</th><th>Worst drop</th><th>Profit factor</th><th>Sharpe</th><th>Monte Carlo 5-95%</th><th>Luck test</th></tr>' +
+      d.features.map(function (f, i) {
+        return '<tr data-i="' + i + '" style="cursor:pointer"><td>' + esc(f.name) + '</td><td>' + esc(f.h_name) + '</td><td>' + f.trades + '</td><td>' + (f.win_rate == null ? '–' : f.win_rate + '%') + '</td><td class="' + (f.total >= 0 ? 'ok' : 'no') + '">' + pc(f.total, 1) + '</td><td>' + pc(f.max_dd, 1) + '</td><td>' + (f.pf == null ? '–' : f.pf) + '</td><td>' + (f.sharpe == null ? '–' : f.sharpe) + '</td><td>' +
+          (f.mc ? pc(f.mc.p5, 0) + ' to ' + pc(f.mc.p95, 0) : '–') + '</td><td class="' + (f.luck ? (f.luck.p < 0.05 ? 'ok' : 'grey') : 'grey') + '" title="' + esc(f.luck ? f.luck.text : 'needs 30+ calls') + '">' + (f.luck ? (f.luck.p < 0.05 ? 'not luck' : 'could be luck') + ' (' + Math.round(f.luck.p * 100) + '%)' : '–') + '</td></tr>';
+      }).join('') + '</table></div><p class="muted">Tap a row for its curve. Each up/down call = a trade from the call to the time point, minus the cost per trade; calls on the same day share it. ' +
+      'Scanner Picks, ETF pick and some others are graded vs SPY, so their trades are "this one vs the market". The luck test flips each call\'s direction at random 500 times: under 5% = coin flips rarely did as well. ' +
+      'Past results, small samples: research, not a promise.</p><div id="btOne"></div></div>';
+    $('btOut').innerHTML = h + (d.at ? '<p class="muted">Worked out ' + new Date(d.at).toLocaleString() + (d.running ? ' · updating now…' : '') + '. It runs by itself each evening at 7:15 pm ET. <button class="btn" id="bRe">Run again now</button></p>' : '');
+    var re = $('bRe'); if (re) re.onclick = function () { getJ(API + '/backtest?run=1').then(function () { re.textContent = 'Running… reload in a minute'; }); };
+  }
+  $('btOut').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr[data-i]'); if (!tr || !BT) return;
+    var f = BT.features[+tr.dataset.i];
+    $('btOne').innerHTML = '<h2 style="margin:12px 0 4px">' + esc(f.name) + '</h2>' + curve(f.curve) + mcText(f.mc) + (f.luck ? '<p class="muted">' + esc(f.luck.text) + '</p>' : '');
+  });
+  function loadBt(custom) {
+    $('btOut').innerHTML = '<p class="muted">Working it out… (a few seconds)</p>';
+    var u = API + '/backtest?src=' + $('bSrc').value + (custom ? '&h=' + $('bH').value + '&cost=' + encodeURIComponent($('bCost').value) : '');
+    getJ(u).then(drawBt).catch(function (e) { $('btOut').innerHTML = '<p class="muted">' + esc(e.message) + '</p>'; });
+  }
+  $('bGo').onclick = function () { loadBt(true); };
+  $('bSrc').onchange = function () { loadBt(!!$('bH').value || $('bCost').value !== '0.05'); };
+  $('bCsv').onclick = function () {
+    if (!BT || !BT.features) return;
+    var rows = [];
+    BT.features.forEach(function (f) { (f.curve || []).forEach(function (p) { rows.push([f.name, f.h_name, p[0], p[1]]); }); });
+    if (BT.whole) BT.whole.curve.forEach(function (p) { rows.push(['The board as a whole', '', p[0], p[1]]); });
+    csv('board-backtest-' + BT.src + '.csv', ['feature', 'time_point', 'day', 'total_return_pct'], rows);
+  };
+})();
+</script>
+</body>
+</html>

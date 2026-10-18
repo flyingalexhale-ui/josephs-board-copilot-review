@@ -1,0 +1,35 @@
+# 1-share LIVE TEST (October 12). Buys 1 share of AGNC, then sells it as soon as the price moves a cent either way
+# (stop-loss / take-profit of 0.05%). It buys only once: after that exit it waits for a signal that never comes back.
+# While it holds the share, the backup stop sits at the broker 5% below the buy.
+# Switch the algo back to its normal strategy after the test (Use This Strategy on the algo tab).
+name: "LIVE TEST: 1 share AGNC (buy, then sell)"
+symbol: "AGNC"
+
+indicators: []
+
+entry:
+  side: buy
+  when: "close > 0"
+
+exit:
+  when: "close < 0"
+
+position_size:
+  shares: 1
+
+risk:
+  stop_loss_pct: 0.05
+  take_profit_pct: 0.05
+  broker_stop_pct: 5
+  max_order_notional_usd: 100
+
+max_open_positions: 1
+
+trading:
+  paper_sessions: [premarket, afterhours, overnight]
+  live_sessions: [premarket, afterhours, overnight]
+  order_type: limit
+  limit_offset_pct: 0.5
+  cancel_after_s: 60
+
+confirm_live: true

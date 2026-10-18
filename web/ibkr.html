@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · IBKR</title>
+<link rel="manifest" href="manifest-ibkr.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JB IBKR">
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<link rel="stylesheet" href="board.css">
+</head>
+<body>
+<noscript>This board needs JavaScript.</noscript>
+<script>
+window.BOARD_CONFIG = {
+  broker: 'ibkr', name: 'IBKR', subtitle: 'IBKR · 1M·5M·15M·45M·4H·8H·1D·3D·1W·1MO',
+  footer: "<b>Source:</b> Interactive Brokers, through IB Gateway on the spare Mac. Stocks stream through regular hours and IBKR's overnight venue; futures follow the front-month contract and roll automatically. The spare Mac records every price around the clock, so overnight moves are always on the board."
+};
+</script>
+<script src="board.js"></script>
+<script src="ranges.js"></script>
+<script src="chart.js"></script>
+<script src="signals.js"></script>
+<script src="plus.js"></script>
+<script src="plus2.js"></script>
+<script src="kill.js"></script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+<script src="safety.js"></script>
+<script src="tradetools.js"></script>
+<script src="why.js"></script>
+<script src="insight.js"></script>
+</body>
+</html>

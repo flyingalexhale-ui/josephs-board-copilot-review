@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · Ask Claude</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- Ask Claude page (jb-macro): your question plus the board's live numbers, copied and opened in the Claude app. Free: no API key; the board sends nothing. Data: /api/plus/claude -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#5b4bb5;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#b39dff;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:22px 4px 8px;}
+  #when{font-size:12px;color:var(--dim);}
+  #jump{display:flex;flex-wrap:wrap;gap:6px;margin:10px 4px 0;}
+  #jump a{font-size:11px;color:#b39dff;text-decoration:none;border:1px solid #2e2560;border-radius:12px;padding:3px 9px;}
+  .card{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:6px 12px;}
+  .set{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .set:last-child{border-bottom:0;}
+  .set input[type=checkbox]{width:18px;height:18px;margin-top:1px;accent-color:#5b4bb5;flex-shrink:0;}
+  .set .t{flex:1;} .set .t small{display:block;color:var(--dim);font-size:11px;margin-top:2px;line-height:1.45;}
+  input[type=text],input[type=number],select,textarea{background:#000;color:var(--white);border:1px solid var(--line-bright);border-radius:4px;font:inherit;font-size:12px;padding:5px 6px;}
+  textarea{width:100%;min-height:80px;line-height:1.45;}
+  button{font:inherit;font-size:12px;color:var(--white);border:1px solid #3d3191;background:#3d3191;border-radius:4px;padding:6px 10px;font-weight:700;cursor:pointer;}
+  button.ghost{background:#0b2238;border-color:#164060;}
+  button.red{background:#7a1c1c;border-color:#a12a2a;}
+  .ev{display:flex;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line);align-items:baseline;}
+  .ev .tm{min-width:92px;color:var(--dim);font-size:11px;}
+  .ev .k{min-width:110px;font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.4px;}
+  .ev .tx{flex:1;line-height:1.45;} .ev a{color:#7fd6ff;}
+  .tbl{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;}
+  td,th{padding:6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th{color:var(--dim);font-weight:400;font-size:11px;} td:first-child,th:first-child{text-align:left;}
+  .up{color:var(--green);} .dn{color:var(--red);} .warn{color:var(--amber);} .hot{color:#d6a8ff;font-weight:700;}
+  .note{font-size:11px;color:var(--dim);margin:6px 4px;line-height:1.5;}
+  .err{color:#ff8a80;}
+  .msg{font-size:12px;color:var(--dim);margin-left:8px;}
+  .chip{display:inline-block;border-radius:3px;padding:1px 6px;font-size:10.5px;font-weight:700;border:1px solid;margin:1px 2px;}
+  .c-g{background:#062a14;color:#5dff8f;border-color:#145c2c;} .c-a{background:#2e2400;color:#ffc400;border-color:#7a5c00;}
+  .c-r{background:#3a0b0b;color:#ff8a80;border-color:#7a1c1c;} .c-b{background:#0e2a3a;color:#7fd6ff;border-color:#1e5a78;}
+  .c-d{background:#14202e;color:#9fb3c8;border-color:#2a3d52;} .c-p{background:#22163f;color:#d6a8ff;border-color:#4b3a8a;}
+  .bar{height:8px;background:#0b2238;border-radius:4px;overflow:hidden;} .bar i{display:block;height:100%;background:#7c6cf0;}
+  .row2{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 4px;}
+  .big{font-size:22px;font-weight:700;}
+  @media (max-width:600px){ .ev{flex-wrap:wrap;} .ev .tm,.ev .k{min-width:0;} }
+</style>
+<style>
+  #q{min-height:110px;font-size:14px;}
+  .pr{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;} .pr button{font-weight:400;font-size:11.5px;}
+  .part{border-bottom:1px solid var(--line);padding:6px 0;} .part:last-child{border-bottom:0;}
+  .part pre{white-space:pre-wrap;font:inherit;font-size:11px;color:var(--dim);margin:6px 0 0 28px;max-height:220px;overflow:auto;}
+  .part label{display:flex;gap:10px;align-items:center;} .part input{width:18px;height:18px;accent-color:#5b4bb5;}
+  .go{font-size:15px;padding:10px 16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>ASK CLAUDE</h1><div id="when">Loading…</div></header>
+  <p class="note">Type a question. The button copies it together with the board's live numbers you tick below, and opens the Claude app
+    (or claude.ai) with it filled in. Free: no API key and nothing extra to pay. The board itself sends nothing anywhere; your question goes
+    to Claude only when you press send in the Claude app, and it counts toward your normal Claude plan.</p>
+  <div class="card" style="padding:10px 12px">
+    <textarea id="q" placeholder="e.g. TQQQ is up 2% overnight while futures are flat. Is that a gap I should fade at the open?"></textarea>
+    <div class="pr" id="prompts"></div>
+    <div class="row2" style="margin:8px 0 4px"><button class="go" id="go">Copy and open Claude ›</button><button class="ghost" id="copy">Copy only</button><span class="msg" id="msg"></span></div>
+  </div>
+  <h2>Board data to include</h2>
+  <div class="card" id="parts"><p class="note">Loading…</p></div>
+  <p class="note" id="size"></p>
+  <h2>Your recent questions</h2>
+  <div id="hist"></div>
+  <p class="note">Tips: ask "what could go wrong", "what would you watch", or "explain why". Claude sees only what you send, and it can be wrong; it is not financial advice.
+    If the text is too long for the link, the app opens with your question and you paste the rest (it is already on your clipboard: tap the message box, then Paste).</p>
+</div>
+<script>
+(function () {
+  'use strict';
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var P = new URLSearchParams(location.search), PARTS = [], MAXURL = 6500;
+  var PROMPTS = ['What is the overnight setup for my 3x ETFs, and what would you watch before the open?',
+    'Which of my positions is most at risk tonight, and why?', 'Explain the biggest move on my board right now.',
+    'Is the macro backdrop a tailwind or headwind for 3x Nasdaq funds over the next few weeks?',
+    'Give me a plan for tomorrow\'s pre-market: levels, what would change my mind.'];
+  var q = document.getElementById('q'), msg = document.getElementById('msg');
+  if (P.get('q')) q.value = P.get('q');
+  try { if (!q.value) q.value = localStorage.getItem('ac_draft') || ''; } catch (e) {}
+  q.oninput = function () { try { localStorage.setItem('ac_draft', q.value); } catch (e) {} };
+  document.getElementById('prompts').innerHTML = PROMPTS.map(function (t, i) { return '<button class="ghost" data-p="' + i + '">' + esc(t) + '</button>'; }).join('');
+  [].forEach.call(document.querySelectorAll('[data-p]'), function (b) { b.onclick = function () { q.value = PROMPTS[+b.dataset.p]; q.oninput(); q.focus(); }; });
+  var only = P.get('parts') ? P.get('parts').split(',') : null;
+  function chosen() { return PARTS.filter(function (p) { var c = document.getElementById('pt-' + p.id); return c && c.checked; }); }
+  function body() {
+    var ch = chosen();
+    var NY = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date());
+    return ch.length ? '\n\n---\nLive data from my trading board (New York time ' + NY + '). I mainly trade 3x leveraged and 3x inverse ETFs, often outside regular hours.\n\n' +
+      ch.map(function (p) { return '## ' + p.title + '\n' + p.text; }).join('\n\n') : '';
+  }
+  function size() { var n = (q.value + body()).length; document.getElementById('size').textContent = n.toLocaleString() + ' characters' + (encodeURIComponent(q.value + body()).length > MAXURL ? ' (too long for the link: you will paste the board data in the app)' : ''); }
+  function drawParts() {
+    document.getElementById('parts').innerHTML = PARTS.length ? PARTS.map(function (p) {
+      var on = only ? only.indexOf(p.id) >= 0 : p.on;
+      return '<div class="part"><label><input type="checkbox" id="pt-' + p.id + '"' + (on ? ' checked' : '') + '><span>' + esc(p.title) + '</span></label>' +
+        '<details><summary class="note" style="margin-left:28px">show what is sent</summary><pre>' + esc(p.text) + '</pre></details></div>';
+    }).join('') : '<p class="note">No board data available right now.</p>';
+    [].forEach.call(document.querySelectorAll('.part input'), function (c) { c.onchange = size; });
+    size();
+  }
+  function copy(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise(function (ok, bad) {
+      var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t);
+      t.focus(); t.select(); t.setSelectionRange(0, text.length);
+      var done = false; try { done = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(t); done ? ok() : bad(new Error('copy blocked'));
+    });
+  }
+  function remember() {
+    try { var h = JSON.parse(localStorage.getItem('ac_hist') || '[]'); h = h.filter(function (x) { return x.q !== q.value; }); h.unshift({ q: q.value, at: Date.now() });
+      localStorage.setItem('ac_hist', JSON.stringify(h.slice(0, 12))); } catch (e) {}
+    drawHist();
+  }
+  function drawHist() {
+    var h = []; try { h = JSON.parse(localStorage.getItem('ac_hist') || '[]'); } catch (e) {}
+    document.getElementById('hist').innerHTML = h.length ? '<div class="card">' + h.map(function (x, i) {
+      return '<div class="ev"><span class="tm">' + esc(new Date(x.at).toLocaleDateString([], { month: 'short', day: 'numeric' })) + '</span><span class="tx"><a href="#" data-h="' + i + '">' + esc(x.q) + '</a></span></div>';
+    }).join('') + '</div>' : '<p class="note">None yet (kept on this phone or computer only).</p>';
+    [].forEach.call(document.querySelectorAll('[data-h]'), function (a) { a.onclick = function (e) { e.preventDefault(); q.value = h[+a.dataset.h].q; q.oninput(); size(); window.scrollTo(0, 0); }; });
+  }
+  document.getElementById('copy').onclick = function () {
+    if (!q.value.trim()) { msg.textContent = 'Type a question first.'; return; }
+    copy(q.value + body()).then(function () { msg.textContent = 'Copied. Paste it into Claude.'; remember(); }).catch(function () { msg.textContent = 'Could not copy (the browser blocked it).'; });
+  };
+  document.getElementById('go').onclick = function () {
+    if (!q.value.trim()) { msg.textContent = 'Type a question first.'; return; }
+    var all = q.value + body(), fits = encodeURIComponent(all).length <= MAXURL;
+    var link = 'https://claude.ai/new?q=' + encodeURIComponent(fits ? all : q.value + '\n\n(My board\'s live data is on my clipboard; I will paste it in my next message.)');
+    function open() { var a = document.createElement('a'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+    copy(all).then(function () { msg.textContent = fits ? 'Copied and opening Claude…' : 'Copied. Claude opens with your question: paste the board data as your next message.'; remember(); open(); })
+      .catch(function () { msg.textContent = 'Opening Claude (copy was blocked, so only what fits in the link is included)…'; remember(); open(); });
+  };
+  q.addEventListener('input', size);
+  drawHist();
+  fetch('/api/plus/claude', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+    if (r.status === 401) { top.location.href = '/login?next=/'; throw new Error('login'); }
+    return r.json();
+  }).then(function (d) {
+    PARTS = d.parts || [];
+    document.getElementById('when').textContent = 'Board data as of ' + new Date(d.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    drawParts();
+  }).catch(function () { document.getElementById('when').textContent = 'Could not reach the Mac.'; document.getElementById('parts').innerHTML = '<p class="note">Board data not available; you can still ask.</p>'; });
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+# The stocks the scanner watches when the Scanner tab is switched to "Stocks".
+# (The ETF list and every other setting stay in watchlist.yaml.)
+# Edit freely, then run:  ./jb restart scanner
+#
+# Kept to 30, the same as the ETF list, so the scanner never uses more IBKR market-data
+# lines than it does today. Starting list: 30 heavily traded US stocks.
+
+symbols:
+  - AAPL
+  - MSFT
+  - NVDA
+  - AMZN
+  - GOOGL
+  - META
+  - TSLA
+  - AVGO
+  - AMD
+  - NFLX
+  - PLTR
+  - MU
+  - INTC
+  - SMCI
+  - COIN
+  - MSTR
+  - HOOD
+  - SOFI
+  - UBER
+  - BA
+  - JPM
+  - BAC
+  - XOM
+  - CVX
+  - UNH
+  - LLY
+  - DIS
+  - WMT
+  - RIVN
+  - MARA
+
+# Single stocks swing more than ETFs, so the two price checks are set a bit higher here
+# than in watchlist.yaml (otherwise TSLA, MSTR and friends would be flagged all day).
+# Delete this whole block to use watchlist.yaml's thresholds for stocks too.
+detectors:
+  price_delta_pct:
+    threshold_pct: 1.0          # flag if a single window moves at least this % open->close
+
+  cumulative_delta_pct:
+    threshold_pct: 2.0          # flag if the last N windows add up to at least this % move
+    lookback_windows: 3
+
+  volume_surge:
+    multiplier: 3.0
+    min_baseline_windows: 3
+    same_session: true
+
+  # jb-scanwhy (deep search idea 51): six more checks. Set one to false to turn it off.
+  breakout_volume:
+    volume_x: 2.0                # close past this session's high/low with 2x the normal volume
+    min_windows: 4
+    same_session: true
+  vwap_cross:                    # crossed the session's average price paid (VWAP) after 3 windows on the other side
+    min_windows: 4
+    min_pct: 0.1
+    hold_windows: 3
+  squeeze_release:
+    tight_windows: 6             # 6 unusually narrow windows in a row, then a break out of that box
+    multiplier: 2.0
+    same_session: true
+  new_high_low_volume:
+    lookback: 12                 # a new 1-hour high/low while volume keeps falling
+  three_strong:
+    min_pct: 0.5                 # 3 windows in a row the same way, each at least this %
+  fade:
+    move_pct: 2.0                # gave back over half of a move this big in the last 30 minutes
+    lookback: 6
+
+  range_expansion:
+    multiplier: 3.0
+    min_baseline_windows: 3
+    same_session: true

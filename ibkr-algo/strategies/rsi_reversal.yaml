@@ -1,0 +1,26 @@
+# Mean-reversion: buy when RSI says oversold, exit when it recovers back to neutral (or the
+# risk block's stop/take-profit fires first, whichever comes first).
+name: "RSI(14) oversold bounce"
+symbol: "SPY"
+
+indicators:
+  - kind: rsi
+    period: 14
+
+entry:
+  side: buy
+  when: "rsi_14 < 30"
+
+exit:
+  when: "rsi_14 > 55"
+
+position_size:
+  shares: 10    # a fixed share count instead of pct_of_equity -- either style works
+
+risk:
+  stop_loss_pct: 4
+  take_profit_pct: 10
+  max_order_notional_usd: 10000
+
+max_open_positions: 1
+confirm_live: false

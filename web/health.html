@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · Health</title>
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- Health tab (jb-extras): is every part of the board running, when did each broker last send a
+     price, the last lines of each log, and a Restart button per part. /api/health/page and
+     /api/health/restart in gateway/extras.py -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:980px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid #2f7a44;padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:18px 4px 8px;}
+  #sum{font-size:13px;font-weight:700;} #upd{font-size:11px;color:var(--dim);}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;}
+  .c{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:10px;}
+  .c .k{font-size:11px;color:var(--dim);} .c .v{font-size:17px;font-weight:700;margin-top:3px;} .c .s{font-size:11px;color:var(--dim);margin-top:3px;line-height:1.4;}
+  .svc{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:10px 12px;margin:8px 0;}
+  .svc.bad{border-color:var(--red);}
+  .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .name{font-weight:700;font-size:14px;flex:1;min-width:150px;}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;background:var(--dim);vertical-align:1px;}
+  .dot.ok{background:var(--green);box-shadow:0 0 6px var(--green);} .dot.bad{background:var(--red);} .dot.warn{background:var(--amber);}
+  .state{font-size:12px;} .ok-t{color:var(--green);} .bad-t{color:#ff8a80;} .warn-t{color:var(--amber);} .dim{color:var(--dim);}
+  .about{font-size:12px;color:var(--dim);margin:5px 0 0;line-height:1.45;}
+  .det{font-size:11px;color:var(--dim);margin-top:4px;}
+  details{margin-top:6px;} summary{cursor:pointer;color:var(--dim);font-size:11px;}
+  pre{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:11px;line-height:1.5;color:#cfd8e3;background:#04101f;border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin:6px 0 0;}
+  button{font:inherit;font-size:12px;color:var(--white);border:1px solid #1e5631;background:#1e5631;border-radius:4px;padding:6px 10px;font-weight:700;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:default;}
+  button.warnb{background:#5a1a1a;border-color:#8a2a2a;}
+  #jb-theme{display:none;}
+  .note{font-size:11px;color:var(--dim);margin:10px 4px;line-height:1.55;}
+  .msg{font-size:12px;color:var(--amber);margin-left:6px;}
+</style>
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>HEALTH</h1><div><span id="sum">Checking…</span> <button id="jb-theme"></button><div id="upd"></div></div></header>
+  <h2>Prices coming in</h2>
+  <div class="cards" id="cards"></div>
+  <h2>Parts of the board</h2>
+  <div id="svcs"></div>
+  <p class="note"><b>Restart</b> does the same as <code>./jb restart &lt;name&gt;</code> in Terminal on the Mac: it stops that
+    part and starts it again with the current settings.env. A price bridge takes about 30 seconds to get prices flowing
+    again (IBKR needs IB Gateway running and logged in). Restarting <b>the board</b> itself makes this page go blank for a
+    few seconds; it comes back by itself. Things that are "off in settings.env" are turned off on purpose.</p>
+  <p class="note">Last price = the newest price the board got from that broker. During market hours it should be under a
+    couple of minutes old. IBKR also has prices overnight (Sunday 8 pm to Friday 8 pm); Webull has none from 8 pm to 4 am on
+    your plan, so an old Webull time overnight is normal.</p>
+</div>
+<script>
+(function(){
+  'use strict';
+  if(window.top === window) document.getElementById('jb-theme').style.display = 'inline-block';
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function ago(ms, now){
+    if(!ms) return 'never';
+    var s = Math.max(0, Math.round((now - ms) / 1000));
+    if(s < 90) return s + ' seconds ago';
+    if(s < 5400) return Math.round(s / 60) + ' minutes ago';
+    if(s < 172800) return Math.round(s / 3600) + ' hours ago';
+    return Math.round(s / 86400) + ' days ago';
+  }
+  function etParts(ms){
+    var p = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false}).formatToParts(new Date(ms));
+    var o = {}; p.forEach(function(x){ o[x.type] = x.value; });
+    return {day: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(o.weekday), min: (parseInt(o.hour, 10) % 24) * 60 + parseInt(o.minute, 10)};
+  }
+  // when should a broker be sending prices? (holidays not known here, so a quiet holiday shows amber)
+  function expected(broker, ms){
+    var t = etParts(ms), wk = t.day >= 1 && t.day <= 5;
+    if(broker === 'ibkr'){
+      if(t.day === 6 || (t.day === 5 && t.min >= 20 * 60) || (t.day === 0 && t.min < 20 * 60)) return false;
+      return !(t.min >= 3 * 60 + 50 && t.min < 4 * 60);
+    }
+    return wk && t.min >= 4 * 60 && t.min < 20 * 60;
+  }
+  var STATE = {running: ['ok', 'Running', 'ok-t'], restarting: ['bad', 'Keeps stopping (restarting)', 'bad-t'],
+               stopped: ['bad', 'Stopped', 'bad-t'], off: ['', 'Off in settings.env', 'dim'], unknown: ['warn', 'Unknown', 'warn-t']};
+  var busy = {}, data = null;
+  function draw(d){
+    data = d;
+    var now = d.server_ms, bad = 0, on = 0;
+    $('cards').innerHTML = ['ibkr', 'webull'].map(function(b){
+      var p = d.prices[b] || {}, last = Math.max(p.live_ms || 0, p.recorded_ms || 0) || null;
+      var stale = last ? now - last > 5 * 60000 : true, exp = expected(b, now);
+      var col = !exp ? 'dim' : stale ? 'warn-t' : 'ok-t';
+      return '<div class="c"><div class="k">' + (b === 'ibkr' ? 'IBKR' : 'Webull') + ' last price</div><div class="v ' + col + '">' + esc(ago(last, now)) +
+        '</div><div class="s">' + (!exp ? 'Market closed for this broker now, so no new prices is normal.' : stale ? 'Should be coming in now. Try Restart on "' + (b === 'ibkr' ? 'IBKR' : 'Webull') + ' prices" below.' : 'Coming in normally.') + '</div></div>';
+    }).join('') + (d.disk ? '<div class="c"><div class="k">Mac disk space free</div><div class="v ' + (d.disk.free_gb < 5 ? 'bad-t' : 'ok-t') + '">' + d.disk.free_gb +
+      ' GB</div><div class="s">of ' + d.disk.total_gb + ' GB. Under 5 GB, the price record and videos may stop saving.</div></div>' : '');
+    $('svcs').innerHTML = d.services.map(function(s){
+      var st = STATE[s.state] || STATE.unknown, det = [];
+      var problem = s.on && s.state !== 'running';
+      if(s.on) on++;
+      if(problem) bad++;
+      if(s.pid) det.push('process ' + s.pid);
+      if(s.port) det.push(s.state === 'running' ? (s.port_up ? 'answering on port ' + s.port : 'port ' + s.port + ' not open yet') : 'port ' + s.port);
+      if(s.started) det.push('started ' + s.started);
+      if(s.algo){
+        det.push(s.algo.killed ? '<b class="bad-t">PAUSED (Stop & close)</b>' : 'trading');
+        if(s.algo.strategy) det.push(esc(s.algo.strategy) + (s.algo.symbol ? ' on ' + esc(s.algo.symbol) : ''));
+        if(s.algo.age_s != null) det.push('status ' + esc(ago(now - s.algo.age_s * 1000, now)));
+      }
+      if(s.port && s.state === 'running' && !s.port_up){ st = ['warn', 'Starting up', 'warn-t']; }
+      var b = busy[s.name];
+      var btn = s.on ? '<button data-svc="' + esc(s.name) + '" class="' + (problem ? 'warnb' : '') + '"' + (b ? ' disabled' : '') + '>Restart</button>' : '';
+      return '<div class="svc' + (problem ? ' bad' : '') + '"><div class="top"><div class="name"><span class="dot ' + st[0] + '"></span>' + esc(s.title) +
+        '</div><span class="state ' + st[2] + '">' + st[1] + '</span>' + btn + (b ? '<span class="msg">' + esc(b) + '</span>' : '') + '</div>' +
+        '<div class="about">' + esc(s.about) + '</div>' + (det.length ? '<div class="det">' + det.join(' · ') + '</div>' : '') +
+        (s.log && s.log.length ? '<details><summary>Last lines of its log</summary><pre>' + esc(s.log.join('\n')) + '</pre></details>' : '') + '</div>';
+    }).join('');
+    $('sum').className = bad ? 'bad-t' : 'ok-t';
+    $('sum').textContent = bad ? bad + ' of ' + on + ' need attention' : 'All ' + on + ' running';
+    $('upd').textContent = 'checked ' + new Date(now).toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', second: '2-digit'}) + ' ET' +
+      (d.launchd ? '' : ' · launchd not reachable, checked ports instead');
+  }
+  function load(){
+    return fetch('/api/health/page', {credentials: 'same-origin', cache: 'no-store'}).then(function(r){
+      if(r.status === 401){ (window.top || window).location.href = '/login?next=/'; throw new Error('login'); }
+      return r.json();
+    }).then(draw).catch(function(e){
+      if(e.message !== 'login'){ $('sum').className = 'bad-t'; $('sum').textContent = 'The board is not answering (restarting?)'; }
+    });
+  }
+  $('svcs').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-svc]'); if(!b) return;
+    var name = b.dataset.svc, row = (data.services || []).filter(function(s){ return s.name === name; })[0] || {};
+    if(!confirm('Restart ' + (row.title || name) + '?' + (name === 'gateway' ? '\n\nThis page will go blank for a few seconds.' : ''))) return;
+    busy[name] = 'Restarting…'; draw(data);
+    fetch('/api/health/restart', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+                                  body: JSON.stringify({name: name})}).then(function(r){ return r.json(); }).then(function(r){
+      busy[name] = r.ok ? 'Restarting… (about 30 s)' : r.error; draw(data);
+      setTimeout(function(){ delete busy[name]; load(); }, 30000);
+    }).catch(function(){ busy[name] = 'Restarting…'; setTimeout(function(){ delete busy[name]; load(); }, 15000); });
+    var n = 0, t = setInterval(function(){ load(); if(++n >= 10) clearInterval(t); }, 3000);
+  });
+  load();
+  setInterval(function(){ if(!document.hidden) load(); }, 15000);
+})();
+</script>
+<script src="subtabs.js"></script>
+<script src="mobile.js"></script>
+<script src="syscheck-card.js"></script>
+<script src="health-heart.js"></script>
+<script src="health-plus.js"></script>
+<script src="navbar.js"></script>
+<script src="safety.js"></script>
+</body>
+</html>

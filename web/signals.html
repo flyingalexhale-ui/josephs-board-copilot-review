@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · Signals</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- Signals tab (jb-signals): smarter phone alerts and their switches, SEC filings, social buzz,
+     earnings this week, and the 7:30 am overnight summary. Data: /api/signals (gateway/signals.py). -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#2f7a44;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:22px 4px 8px;}
+  #when{font-size:12px;color:var(--dim);}
+  .card{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:6px 12px;}
+  .set{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .set:last-child{border-bottom:0;}
+  .set input[type=checkbox]{width:18px;height:18px;margin-top:1px;accent-color:#2f7a44;flex-shrink:0;}
+  .set .t{flex:1;} .set .t small{display:block;color:var(--dim);font-size:11px;margin-top:2px;line-height:1.45;}
+  .set input[type=number]{width:62px;background:#000;color:var(--white);border:1px solid var(--line-bright);border-radius:4px;font:inherit;font-size:12px;padding:3px 5px;}
+  button{font:inherit;font-size:12px;color:var(--white);border:1px solid #1e5631;background:#1e5631;border-radius:4px;padding:6px 10px;font-weight:700;cursor:pointer;}
+  .ev{display:flex;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line);align-items:baseline;}
+  .ev .tm{min-width:92px;color:var(--dim);font-size:11px;}
+  .ev .k{min-width:96px;font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.4px;}
+  .ev .tx{flex:1;line-height:1.45;} .ev a{color:#7fd6ff;}
+  table{width:100%;border-collapse:collapse;}
+  td,th{padding:6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th{color:var(--dim);font-weight:400;font-size:11px;} td:first-child,th:first-child{text-align:left;}
+  .up{color:var(--green);} .dn{color:var(--red);} .hot{color:#d6a8ff;font-weight:700;}
+  .note{font-size:11px;color:var(--dim);margin:6px 4px;line-height:1.5;}
+  .err{color:#ff8a80;}
+  #msg{font-size:12px;color:var(--dim);margin-left:8px;}
+  @media (max-width:600px){ .ev{flex-wrap:wrap;} .ev .tm,.ev .k{min-width:0;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>SIGNALS</h1><div id="when">Loading…</div></header>
+  <p class="note">Smarter alerts sent to your phone (ntfy app, same as your price alerts). Every stock and ETF on your boards and
+    the scanner is watched; nothing to set up per stock. Each tile on the IBKR and Webull boards also has a <b>WHY?</b> button.</p>
+  <div id="noTopic" class="note err" style="display:none">Phone alerts aren't set up (no JB_NTFY_TOPIC in settings.env), so these only show on this page.</div>
+
+  <h2>Phone alerts (turn on or off)</h2>
+  <div class="card" id="sets"></div>
+  <div style="margin:8px 4px"><button id="save">Save</button><button id="test" style="margin-left:6px;background:#0b2238;border-color:#164060">Send a test summary now</button><span id="msg"></span></div>
+
+  <h2>Recent signals</h2>
+  <div id="log"></div>
+
+  <h2>SEC filings (8-K, insider buys, 13D)</h2>
+  <div id="sec"></div>
+  <p class="note"><b>8-K</b> = the company announcing something big (results, a deal, a CEO change, layoffs...). <b>Insider buy</b> = an
+    executive or director buying shares with their own money (sales and stock awards are left out; buys are the rarer, stronger
+    signal). <b>13D</b> = an investor now owns 5%+ and may push for changes. From SEC EDGAR, checked every 15 minutes. Only
+    filings after this was installed are listed.</p>
+
+  <h2>Social buzz (StockTwits)</h2>
+  <div id="buzz"></div>
+  <p class="note">Posts per hour about each stock on StockTwits, compared with its normal pace over the last week (needs about
+    6 hours of checks to learn "normal"). A sudden jump often comes before or with a big move. Each stock is checked about
+    every 20-30 minutes. Reddit is left out: it blocks free automatic reading.</p>
+
+  <h2>Earnings today / last night</h2>
+  <div id="earn"></div>
+  <p class="note"><b>Typical move</b> = the average size of the stock's move around its last 4 reports (close the day before to close
+    the day after). <b>Now</b> = vs the 4 pm close. When the move passes the typical one you get a push. Report dates from Nasdaq.</p>
+  <div id="errs" class="note"></div>
+</div>
+<script>
+(function(){
+  'use strict';
+  var data = null, dirty = false;
+  var SETS = [
+    ['big_move', 'Big move', 'A stock moves at least <i>pct</i>% vs the 4 pm close. Once per session (after-hours, overnight, pre-market, regular).', [['pct','%']]],
+    ['fast_move', 'Fast move', 'A stock moves at least <i>pct</i>% within <i>mins</i> minutes. At most once an hour per stock.', [['pct','%'],['mins','min']]],
+    ['volume', 'Heavy volume', 'This hour\'s volume so far is <i>x</i> times the normal for the same hour (last 5 trading days, as seen by the Mac).', [['x','x']]],
+    ['yday', 'Yesterday\'s high / low', 'A stock crosses above yesterday\'s regular-session high or below its low.', []],
+    ['gap4', '4 am gap list', 'One push at 4:00 am with every stock at least <i>pct</i>% away from the 4 pm close.', [['pct','%']]],
+    ['buzz', 'Buzz spike', 'StockTwits posts are <i>x</i> times their normal pace (and at least 10 an hour).', [['x','x']]],
+    ['sec', 'SEC filings', 'An 8-K, an insider buy, or a 13D on one of your stocks.', []],
+    ['earnings', 'Earnings move', 'On a report day, the stock moves more than its typical earnings move.', []],
+    ['summary', 'Overnight summary', 'One push at <b id="st">7:30</b> am on trading days: the overnight session\'s biggest movers, futures, the overnight mood, today\'s big events and who reports earnings. (Change the time with JB_SUMMARY_TIME in settings.env.)', []]
+  ];
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function pc(v){ return v == null ? '–' : '<span class="' + (v > 0 ? 'up' : v < 0 ? 'dn' : '') + '">' + (v > 0 ? '+' : '') + v.toFixed(2) + '%</span>'; }
+  function tm(ms){ return new Date(ms).toLocaleString('en-US', {timeZone:'America/New_York', weekday:'short', hour:'numeric', minute:'2-digit'}); }
+  function api(body){
+    var o = body ? {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : {credentials:'same-origin', cache:'no-store'};
+    return fetch('/api/signals', o).then(function(r){
+      if(r.status === 401){ (window.top || window).location.href = '/login?next=/'; throw new Error('login'); }
+      return r.json();
+    });
+  }
+  function drawSets(){
+    var s = data.settings;
+    document.getElementById('sets').innerHTML = SETS.map(function(x){
+      var cur = s[x[0]] || {}, txt = x[2];
+      x[3].forEach(function(f){ txt = txt.replace('<i>' + f[0] + '</i>', '<input type="number" step="any" min="0" data-k="' + x[0] + '" data-f="' + f[0] + '" value="' + esc(cur[f[0]]) + '">'); });
+      return '<label class="set"><input type="checkbox" data-k="' + x[0] + '"' + (cur.on ? ' checked' : '') + '><span class="t"><b>' + x[1] + '</b><small>' + txt + '</small></span></label>';
+    }).join('');
+    document.getElementById('st').textContent = data.summary_time;
+    [].forEach.call(document.querySelectorAll('#sets input'), function(i){ i.addEventListener('input', function(){ dirty = true; document.getElementById('msg').textContent = 'Not saved yet.'; }); });
+  }
+  function draw(){
+    document.getElementById('when').textContent = 'Updated ' + tm(data.server_ms) + ' NY time';
+    document.getElementById('noTopic').style.display = data.topic ? 'none' : '';
+    if(!dirty) drawSets();
+    var log = data.log || [];
+    document.getElementById('log').innerHTML = log.length ? log.slice(0, 40).map(function(e){
+      return '<div class="ev"><span class="tm">' + esc(tm(e.at)) + '</span><span class="k">' + esc(e.kind) + '</span><span class="tx">' + (e.link ? '<a href="' + esc(e.link) + '" target="_blank" rel="noopener">' + esc(e.text) + '</a>' : esc(e.text)) + '</span></div>';
+    }).join('') : '<p class="note">Nothing yet. Signals appear here and on your phone as they happen.</p>';
+    var f = data.filings || [];
+    document.getElementById('sec').innerHTML = (data.sec_note ? '<p class="note err">' + esc(data.sec_note) + '</p>' : '') + (f.length ? f.map(function(x){
+      return '<div class="ev"><span class="tm">' + esc(tm(x.at)) + '</span><span class="k">' + esc(x.form === '4' ? 'insider buy' : x.form) + '</span><span class="tx"><a href="' + esc(x.link) + '" target="_blank" rel="noopener">' + esc(x.text) + '</a></span></div>';
+    }).join('') : '<p class="note">None yet.</p>');
+    var b = data.buzz || {}, ks = Object.keys(b).sort(function(a, c){ return (b[c].x || 0) - (b[a].x || 0) || b[c].rate - b[a].rate; });
+    document.getElementById('buzz').innerHTML = ks.length ? '<table><tr><th>Stock</th><th>Posts/hour</th><th>Normal</th><th>vs normal</th><th>Bull / bear (last 30)</th></tr>' + ks.map(function(k){
+      var x = b[k];
+      return '<tr><td>' + esc(k) + '</td><td>' + Math.round(x.rate) + '</td><td>' + (x.normal == null ? '<span class="note">learning</span>' : Math.round(x.normal)) + '</td><td class="' + (x.x >= 3 ? 'hot' : '') + '">' + (x.x == null ? '–' : x.x.toFixed(1) + 'x') + '</td><td>' + x.bull + ' / ' + x.bear + '</td></tr>';
+    }).join('') + '</table>' : '<p class="note">Checking… the first stocks appear within a few minutes.</p>';
+    var e = data.earnings || {}, es = Object.keys(e).sort();
+    document.getElementById('earn').innerHTML = es.length ? '<table><tr><th>Stock</th><th>When</th><th>Typical move</th><th>Now vs close</th></tr>' + es.map(function(k){
+      var x = e[k];
+      return '<tr><td>' + esc(k) + '</td><td>' + esc(x.date) + ' ' + esc(x.when) + '</td><td>' + (x.typical ? '±' + x.typical + '% <span class="note">(' + x.n + ')</span>' : '–') + '</td><td>' + pc(x.now) + '</td></tr>';
+    }).join('') + '</table>' : '<p class="note">No stock on your boards reports today or reported last night.</p>';
+    var er = Object.keys(data.errors || {});
+    document.getElementById('errs').innerHTML = er.length ? 'Could not check: ' + esc(er.slice(0, 8).map(function(k){ return k + ' (' + data.errors[k] + ')'; }).join('; ')) + (er.length > 8 ? ' and ' + (er.length - 8) + ' more' : '') : '';
+  }
+  function refresh(){ api().then(function(d){ data = d; draw(); }).catch(function(){}); }
+  document.getElementById('save').onclick = function(){
+    var s = {};
+    [].forEach.call(document.querySelectorAll('#sets input'), function(i){
+      var k = i.dataset.k; s[k] = s[k] || {};
+      if(i.type === 'checkbox') s[k].on = i.checked; else s[k][i.dataset.f] = parseFloat(i.value);
+    });
+    api({settings: s}).then(function(r){ dirty = false; document.getElementById('msg').textContent = r.ok ? 'Saved.' : 'Not saved.'; refresh(); });
+  };
+  document.getElementById('test').onclick = function(){
+    document.getElementById('msg').textContent = 'Sending…';
+    api({action:'test-summary'}).then(function(r){ document.getElementById('msg').textContent = r.ok ? 'Sent: ' + r.text : 'Could not send.'; });
+  };
+  refresh(); setInterval(function(){ if(!document.hidden) refresh(); }, 60000);
+})();
+</script>
+<script src="subtabs.js"></script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+</body>
+</html>

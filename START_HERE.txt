@@ -1,0 +1,66 @@
+JOSEPH'S BOARD -- SETUP ON THE SPARE MAC (about 20 minutes, once)
+======================================================================
+Everything runs on the spare Mac; you open the boards from your phone or work laptop.
+
+1. INSTALL PYTHON 3.13 (the Mac's built-in Python is too old)
+   https://www.python.org/downloads/macos/  ->  under "Stable Releases" pick the newest
+   "Python 3.13.x" that offers "macOS 64-bit universal2 installer" -> run it.
+   Then in Finder > Applications > Python 3.13, double-click "Install Certificates.command".
+
+2. PUT THIS FOLDER IN YOUR HOME FOLDER, named  josephs-board
+   Open Terminal (Applications > Utilities > Terminal) and type:
+       cd ~/josephs-board
+       chmod +x install.sh jb
+       ./install.sh
+   The first run creates settings.env and stops.
+
+3. FILL IN settings.env
+       open -e settings.env
+   - JB_PASSWORD=  pick a password for the web pages (type it as-is, no quotes needed)
+   - WEBULL_APP_KEY / WEBULL_APP_SECRET  from developer.webull.com (or set RUN_WEBULL_BRIDGE=off)
+   - turn parts on/off with  on / off
+   Save, then run   ./install.sh   again. It installs everything and starts it.
+
+4. IB GATEWAY: must be running and logged in on this Mac (API enabled) for the IBKR parts.
+
+5. WEBULL: run   ./jb webull-login   once and approve the request in the Webull app.
+   (Background services never send approval requests themselves; if Webull ever asks again,
+   the board says so -- just run ./jb webull-login again.)
+
+6. OPEN THE BOARDS:   ./jb url   prints the address (use the Tailscale one from your phone).
+   Enter the password once per device. On iPhone: Share > Add to Home Screen.
+
+EVERYDAY COMMANDS (in Terminal, inside ~/josephs-board)
+   ./jb status                 what's running + the address
+   ./jb restart                apply settings.env changes / restart everything
+   ./jb logs ibkr              watch a service's log (ibkr, webull, scanner, gateway, ...)
+   ./jb backtest ibkr strategies/rsi_reversal.yaml      run a backtest (shows on the dashboard)
+   ./jb live ibkr strategies/my_strategy.yaml           LIVE trading, real money (see below)
+   ./jb help                   all commands
+
+LIVE TRADING (real money) -- only after backtesting + paper trading a strategy:
+   - the strategy file must contain  confirm_live: true  and  risk: max_order_notional_usd
+     (the most one order may be worth; it also caps each trade's size), AND you type I_UNDERSTAND_THE_RISK
+   - it runs in that Terminal window; Ctrl+C stops it; keep the window open
+   - or, without Terminal: the GO LIVE button on each Algo tab (needs JB_PASSWORD; same checks; STOP LIVE ends it
+     cleanly and the position stays; it does not start again after a Mac restart unless you tick that option)
+   - sessions and orders follow the TRADING OPTIONS panel (below): regular hours always; pre-market,
+     after-hours and overnight only if ticked in its Live column
+   - it refuses to start if your account's position differs from the algo's record, or an order
+     is still open; after fixing that, ./jb live-reset <broker> <strategy> clears the algo's record
+   - an order with no clear answer pauses live trading until you check (the Algo tab shows it)
+   - several accounts on one login? set IBKR_ACCOUNT_ID / WEBULL_ACCOUNT_ID in settings.env
+   - the algo keeps its own ledger; always check fills in your broker's app
+
+TRADING OPTIONS (the Algo tabs on the dashboard, "Trading options" panel):
+   - tick pre-market / after-hours / overnight separately for paper+backtest and for live
+   - Limit (default) or Market orders -- market only 9:30-16:00 ET, a limit order outside that
+   - limit price (% from the last price), cancel-if-unfilled time, optional trailing stop
+   - Save: the running algo uses it within ~5 seconds. Details: webull-algo/README.md section 4
+
+WEBULL OVERNIGHT (8 pm - 4 am ET) needs Webull's overnight data plan. After you buy it, nothing to do: the Webull
+board, scanner and algo check again every 3 hours and at 7:45 pm ET and switch overnight on by themselves (./jb restart
+only makes it immediate). The Webull Algo tab and the ? Legend say whether overnight data is on right now.
+
+YOUR DATA: price history is recorded 24/7 in data/ (35 days kept, cleaned up automatically).
+Upgrading from the old version: your old recorded history is imported automatically.

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · My trading</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- My trading tab (jb-trading): journal, win/loss by session + daily totals, position-size
+     calculator, daily loss limit (+ algo pause), paper algo leaderboard, "what if" replay.
+     Data: /api/trading, /api/trading/leaderboard, /api/trading/replay (gateway/trading.py). -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#2f7a44;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:26px 4px 8px;scroll-margin-top:50px;}
+  h3{font-size:11px;color:var(--dim);margin:12px 0 6px;letter-spacing:.05em;}
+  #when{font-size:12px;color:var(--dim);}
+  nav{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:6px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);}
+  nav a,.seg button{font-size:11px;font-weight:700;color:#cfe0ee;background:#0b2238;border:1px solid var(--line-bright);border-radius:4px;padding:5px 9px;text-decoration:none;cursor:pointer;font-family:inherit;}
+  .seg{display:flex;gap:4px;flex-wrap:wrap;margin:0 4px 8px;}
+  .seg button.on{background:#1e5631;border-color:#1e5631;color:#fff;}
+  .card{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:8px 10px;overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;}
+  td,th{padding:6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th{color:var(--dim);font-weight:400;font-size:11px;} td:first-child,th:first-child{text-align:left;}
+  .l{text-align:left !important;}
+  .up{color:var(--green);} .dn{color:var(--red);} .dim{color:var(--dim);}
+  .note{font-size:11.5px;color:var(--dim);margin:8px 4px;line-height:1.55;} .note b{color:#cfe0ee;}
+  .explain{background:#0b2238;border-left:3px solid var(--amber);border-radius:4px;padding:8px 12px;margin:8px 4px;font-size:12px;line-height:1.55;color:#cfe0ee;}
+  .explain p{margin:4px 0;}
+  .err{color:#ff8a80;} .ok{color:#7fdc8f;}
+  input,select{background:#000;color:var(--white);border:1px solid var(--line-bright);border-radius:4px;font:inherit;font-size:12px;padding:5px 6px;}
+  input[type=number]{width:96px;} input[type=checkbox]{width:18px;height:18px;accent-color:#2f7a44;vertical-align:middle;}
+  .btn{font:inherit;font-size:12px;color:var(--white);border:1px solid #1e5631;background:#1e5631;border-radius:4px;padding:6px 10px;font-weight:700;cursor:pointer;}
+  .btn.alt{background:#0b2238;border-color:var(--line-bright);}
+  .btn.red{background:#5a1a1a;border-color:#7a2a2a;}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0;}
+  .row label{font-size:11px;color:var(--dim);display:flex;flex-direction:column;gap:3px;}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;}
+  .tile{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:10px;}
+  .tile .k{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;}
+  .tile .v{font-size:20px;font-weight:700;margin-top:4px;} .tile .s{font-size:11px;color:var(--dim);margin-top:2px;}
+  .bar{height:8px;border-radius:4px;background:#0d2740;overflow:hidden;margin-top:6px;} .bar i{display:block;height:100%;}
+  .pill{display:inline-block;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;}
+  .p-run{background:#0e3a1c;color:#7fdc8f;} .p-ib{background:#0b2238;color:#7fd6ff;} .p-wb{background:#2a1740;color:#d6a8ff;} .p-hand{background:#2a2a10;color:#ffd866;}
+  .tag{width:110px;} .nt{width:160px;}
+  canvas{display:block;width:100%;}
+  #calcOut .v{font-size:22px;}
+  @media (max-width:600px){ td,th{padding:5px 4px;font-size:11.5px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>MY TRADING</h1><div id="when">Loading…</div></header>
+  <nav>
+    <a href="#today">Today</a><a href="#journal">Journal</a><a href="#sessions">By session</a><a href="#days">Daily totals</a>
+    <a href="#calc">Size calculator</a><a href="#limit">Loss limit</a><a href="#board">Algo leaderboard</a><a href="#replay">Replay</a>
+  </nav>
+
+  <!-- ===================================================== today -->
+  <h2 id="today">Today</h2>
+  <div class="tiles" id="todayTiles"></div>
+  <p class="note">A trading day starts at <b>8 pm ET the evening before</b>, so it runs overnight → pre-market → regular → after-hours, the order you trade it.</p>
+
+  <!-- ===================================================== journal -->
+  <h2 id="journal">Trading journal</h2>
+  <div class="explain">
+    <p>Your fills come in by themselves: <b>IBKR</b> every 5 minutes (from IB Gateway, the day's fills) and <b>Webull</b> every 10 minutes (last 7 days, if your Webull keys allow reading orders). You can also add a fill by hand.</p>
+    <p>Fills are paired into finished trades (first in, first out). Give each trade a <b>tag</b> (what kind of setup it was) and a note; the tables below then show which setups and which sessions actually make you money.</p>
+  </div>
+  <div class="row" id="srcRow"></div>
+  <div class="card"><table id="tripT"></table></div>
+  <h3>Still open</h3>
+  <div class="card"><table id="openT"></table></div>
+  <h3>Add a fill by hand</h3>
+  <div class="card">
+    <div class="row">
+      <label>Symbol<input id="aSym" maxlength="12" style="width:90px;text-transform:uppercase"></label>
+      <label>Buy or sell<select id="aSide"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+      <label>Shares<input id="aQty" type="number" step="any" min="0"></label>
+      <label>Price<input id="aPx" type="number" step="any" min="0"></label>
+      <label>When (New York time)<input id="aWhen" type="datetime-local"></label>
+      <label>Broker<select id="aBroker"><option value="ibkr">IBKR</option><option value="webull">Webull</option><option value="other">Other</option></select></label>
+      <label>Fees<input id="aFee" type="number" step="any" min="0" value="0" style="width:70px"></label>
+      <button class="btn" id="aGo" style="align-self:flex-end">Add</button><span id="aMsg" class="note"></span>
+    </div>
+  </div>
+
+  <!-- ===================================================== sessions -->
+  <h2 id="sessions">Win / loss by session</h2>
+  <div class="seg" id="sessSeg"><button data-k="by_entry" class="on">By the session you got in</button><button data-k="by_exit">By the session you got out</button></div>
+  <div class="tiles" id="sessTiles"></div>
+  <h3>By tag (setup)</h3>
+  <div class="card"><table id="tagT"></table></div>
+  <h3>By stock</h3>
+  <div class="card"><table id="symT"></table></div>
+
+  <!-- ===================================================== daily totals -->
+  <h2 id="days">Daily totals</h2>
+  <div class="card"><canvas id="dayChart" height="160"></canvas></div>
+  <p class="note">Line = your running total, day by day. Bars = each day's result.</p>
+  <div class="card"><table id="dayT"></table></div>
+
+  <!-- ===================================================== size calculator -->
+  <h2 id="calc">Position-size calculator</h2>
+  <div class="explain"><p>Decide how much you're willing to lose if the stop is hit; this works out how many shares that allows. <b>Risk per share</b> = entry − stop. <b>Shares</b> = money at risk ÷ risk per share.</p></div>
+  <div class="card">
+    <div class="row">
+      <label>Account size $<input id="cAcct" type="number" step="any" min="0"></label>
+      <label>Risk $ (or %)<span style="display:flex;gap:4px"><input id="cRisk" type="number" step="any" min="0" style="width:80px"><select id="cRiskU"><option value="$">$</option><option value="%">% of account</option></select></span></label>
+      <label>Entry price<input id="cEntry" type="number" step="any" min="0"></label>
+      <label>Stop price<input id="cStop" type="number" step="any" min="0"></label>
+    </div>
+    <div class="tiles" id="calcOut" style="margin-top:8px"></div>
+  </div>
+
+  <!-- ===================================================== loss limit -->
+  <h2 id="limit">Daily loss limit</h2>
+  <div class="explain">
+    <p><b>Your limit:</b> when today's closed trades plus your open positions are down more than this, your phone gets a push (once a day).</p>
+    <p><b>Also pause the algos:</b> at the same moment, both paper algos are stopped. Stopping closes the algo's position and it opens nothing new until you press <b>Resume</b> on its algo tab.</p>
+    <p><b>Algo limit:</b> each paper algo is stopped on its own (with a push) when it is down more than this today.</p>
+  </div>
+  <div class="card">
+    <div class="row"><label style="flex-direction:row;align-items:center;gap:8px;color:var(--white);font-size:12px"><input type="checkbox" id="lOn"> Push me when I'm down more than $</label><input id="lAmt" type="number" min="0" step="any"></div>
+    <div class="row"><label style="flex-direction:row;align-items:center;gap:8px;color:var(--white);font-size:12px"><input type="checkbox" id="lPause"> …and pause both algos at the same time</label></div>
+    <div class="row"><label style="flex-direction:row;align-items:center;gap:8px;color:var(--white);font-size:12px"><input type="checkbox" id="aOn"> Pause an algo when it's down more than $</label><input id="aAmt" type="number" min="0" step="any"></div>
+    <div class="row"><label style="flex-direction:row;align-items:center;gap:8px;color:var(--white);font-size:12px"><input type="checkbox" id="sIb"> Read my IBKR fills</label>
+      <label style="flex-direction:row;align-items:center;gap:8px;color:var(--white);font-size:12px"><input type="checkbox" id="sWb"> Read my Webull fills</label></div>
+    <div class="row"><button class="btn" id="lSave">Save</button><span id="lMsg" class="note"></span></div>
+    <div id="algoToday" class="note"></div>
+  </div>
+
+  <!-- ===================================================== leaderboard -->
+  <h2 id="board">Paper algo leaderboard</h2>
+  <div class="explain">
+    <p>Every trading day at <b>8:30 pm ET</b>, each strategy file of both algos is run on paper over the board's own minute-by-minute prices (the last 35 days, overnight included). Each day's result is kept, so this ranks the strategies over weeks.</p>
+    <p>Ranked by the last 20 days. <b>Green days</b> = days it made money. <span class="pill p-run">running</span> = the one that algo is trading on paper right now. To try a variation, copy a strategy file in the algo's <code>strategies</code> folder and change its numbers; it joins the race the next evening.</p>
+    <p class="dim">The board keeps one price per minute, so fills are a little rougher than real ones. Paper only, never real orders.</p>
+  </div>
+  <div class="row"><button class="btn alt" id="lbRun">Run now</button><span id="lbMsg" class="note"></span></div>
+  <div class="card"><table id="lbT"></table></div>
+
+  <!-- ===================================================== replay -->
+  <h2 id="replay">"What if" replay</h2>
+  <div class="explain"><p>Replay a past night minute by minute, from 4 pm ET to 10:30 am the next trading day, from the board's own record (35 days). Press <b>Buy</b>, <b>Short</b> or <b>Flat</b> as it plays to practice; your practice result shows at the end. Nothing is sent to a broker.</p></div>
+  <div class="card">
+    <div class="row">
+      <label>Night of<select id="rNight"></select></label>
+      <label>Stock<select id="rSym"></select></label>
+      <label>Speed<span class="seg" id="rSpeed" style="margin:0"><button data-k="10" class="on">10x</button><button data-k="60">60x</button><button data-k="300">300x</button><button data-k="900">900x</button></span></label>
+      <button class="btn" id="rPlay" style="align-self:flex-end">Play</button>
+      <button class="btn alt" id="rReset" style="align-self:flex-end">Start over</button>
+    </div>
+    <div class="row" id="rInfo" style="font-size:13px"></div>
+    <canvas id="rChart" height="260"></canvas>
+    <div class="row">
+      <button class="btn" id="rBuy">Buy</button><button class="btn red" id="rShort">Short</button><button class="btn alt" id="rFlat">Flat</button>
+      <span id="rPos" class="note"></span>
+    </div>
+    <div id="rLog" class="note"></div>
+  </div>
+  <p class="note">Your own fills and the board's prices only. For practice and record keeping, not advice.</p>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var data = null, sessK = 'by_entry';
+  var TAGS = ['', 'Gap play', 'Earnings', 'News', 'Momentum', 'Dip buy', 'Fade', 'Overnight hold', 'Other'];
+  var SESS = [['overnight','Overnight 8 pm-4 am'],['pre-market','Pre-market 4-9:30 am'],['regular','Regular 9:30 am-4 pm'],['after-hours','After-hours 4-8 pm']];
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function usd(v, sign){ if (v == null) return '<span class="dim">–</span>'; var s = (v < 0 ? '-' : sign && v > 0 ? '+' : '') + '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); return sign ? '<span class="' + (v > 0 ? 'up' : v < 0 ? 'dn' : '') + '">' + s + '</span>' : s; }
+  function px(v){ return v == null ? '–' : '$' + (+v).toLocaleString('en-US', {maximumFractionDigits: v < 10 ? 4 : 2}); }
+  function tm(ms){ return new Date(ms).toLocaleString('en-US', {timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}); }
+  function pct(a, n){ return n ? Math.round(a / n * 100) + '%' : '–'; }
+  function short(s){ return {'overnight':'ON','pre-market':'PRE','regular':'REG','after-hours':'AH'}[s] || s; }
+  function api(path, body){
+    var o = body ? {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : {credentials:'same-origin', cache:'no-store'};
+    return fetch(path, o).then(function(r){
+      if (r.status === 401) { (window.top || window).location.href = '/login?next=/'; throw new Error('login'); }
+      return r.json().then(function(d){ if (!r.ok) throw new Error(d.error || 'error'); return d; });
+    });
+  }
+
+  // ------------------------------------------------------------ today
+  function today(){
+    var S = data.summary, st = data.settings, tot = S.today_realized + S.unrealized;
+    var used = st.loss_limit ? Math.min(1, Math.max(0, -tot / st.loss_limit)) : 0;
+    var h = '<div class="tile"><div class="k">Today total</div><div class="v">' + usd(tot, true) + '</div><div class="s">closed + open</div></div>' +
+      '<div class="tile"><div class="k">Closed today</div><div class="v">' + usd(S.today_realized, true) + '</div></div>' +
+      '<div class="tile"><div class="k">Open positions</div><div class="v">' + usd(S.unrealized, true) + '</div><div class="s">' + data.open.length + ' open</div></div>' +
+      '<div class="tile"><div class="k">Loss limit</div><div class="v">' + (st.loss_on ? usd(st.loss_limit) : '<span class="dim">off</span>') + '</div>' +
+      (st.loss_on ? '<div class="bar"><i style="width:' + Math.round(used * 100) + '%;background:' + (used >= 1 ? '#ff3b30' : used > 0.6 ? '#ffb648' : '#2f7a44') + '"></i></div><div class="s">' + Math.round(used * 100) + '% used</div>' : '') + '</div>';
+    var F = data.fees;   // jb-fees: commissions paid, as IBKR and Webull report them
+    if (F) h += '<div class="tile"><div class="k">Commissions Paid</div><div class="v">' + usd(F.today.total) + '</div><div class="s">Today · IBKR ' + usd(F.today.ibkr) + ' · Webull ' + usd(F.today.webull) +
+      '<br>7 Days ' + usd(F.d7.total) + ' · 30 Days ' + usd(F.d30.total) + '</div></div>';
+    $('todayTiles').innerHTML = h;
+  }
+
+  // ------------------------------------------------------------ journal
+  function src(){
+    var h = '';
+    [['ibkr','IBKR'],['webull','Webull']].forEach(function(b){
+      var s = data.sources[b[0]];
+      h += '<span class="note" style="margin:0">' + b[1] + ': ' + (s.ok === true ? '<span class="ok">✓ ' + esc(s.note) + '</span>' : s.ok === false ? '<span class="err">' + esc(s.note) + '</span>' : '<span class="dim">' + (s.note || 'not checked yet') + '</span>') + '</span>';
+    });
+    $('srcRow').innerHTML = h + '<button class="btn alt" id="refresh">Check now</button>';
+    $('refresh').onclick = function(){ this.textContent = 'Checking…'; api('/api/trading', {action: 'refresh'}).then(set).catch(function(e){ alert(e.message); }); };
+  }
+  function trips(){
+    var t = data.trips;
+    var h = '<tr><th>Closed</th><th class="l">Stock</th><th>Side</th><th>Shares</th><th>In → out</th><th>Sessions</th><th>Held</th><th title="Commissions and fees for this trade (jb-fees)">Fees</th><th>P&amp;L</th><th class="l">Tag</th><th class="l">Note</th></tr>';
+    h += t.length ? t.map(function(x){
+      var held = x.mins < 60 ? x.mins + 'm' : x.mins < 1440 ? Math.round(x.mins / 6) / 10 + 'h' : Math.round(x.mins / 144) / 10 + 'd';
+      return '<tr><td>' + tm(x.exit_t) + '</td><td class="l"><b>' + esc(x.sym) + '</b> <span class="pill ' + (x.broker === 'ibkr' ? 'p-ib' : x.broker === 'webull' ? 'p-wb' : 'p-hand') + '">' + esc(x.broker) + '</span></td><td>' + x.side + '</td><td>' + x.qty +
+        '</td><td>' + px(x.entry) + ' → ' + px(x.exit) + '</td><td>' + short(x.entry_session) + ' → ' + short(x.exit_session) + '</td><td>' + held + '</td><td>' + (x.fees ? usd(x.fees) : '<span class="dim">$0</span>') + '</td><td><b>' + usd(x.pnl, true) + '</b> <span class="dim">' + (x.pnl_pct == null ? '' : (x.pnl_pct > 0 ? '+' : '') + x.pnl_pct + '%') + '</span></td>' +
+        '<td class="l"><select class="tag" data-id="' + esc(x.id) + '">' + TAGS.concat(TAGS.indexOf(x.tag) < 0 ? [x.tag] : []).map(function(g){ return '<option' + (g === x.tag ? ' selected' : '') + ' value="' + esc(g) + '">' + (g || '–') + '</option>'; }).join('') + '</select></td>' +
+        '<td class="l"><input class="nt" data-id="' + esc(x.id) + '" value="' + esc(x.note) + '" placeholder="note"></td></tr>';
+    }).join('') : '<tr><td colspan="11" class="dim l">No finished trades yet. They appear here once a buy and its sell (or a short and its cover) are both in.</td></tr>';
+    $('tripT').innerHTML = h;
+    [].forEach.call(document.querySelectorAll('#tripT .tag, #tripT .nt'), function(el){
+      el.onchange = function(){
+        var id = el.dataset.id, row = el.closest('tr');
+        api('/api/trading', {action: 'note', id: id, tag: row.querySelector('.tag').value, note: row.querySelector('.nt').value}).then(function(d){ data = d; paintStats(); });
+      };
+    });
+    var o = data.open;
+    $('openT').innerHTML = '<tr><th class="l">Stock</th><th>Shares</th><th>Avg price</th><th>Since</th><th>Now</th><th>Open P&amp;L</th></tr>' + (o.length ? o.map(function(x){
+      return '<tr><td class="l"><b>' + esc(x.sym) + '</b> <span class="pill ' + (x.broker === 'ibkr' ? 'p-ib' : x.broker === 'webull' ? 'p-wb' : 'p-hand') + '">' + esc(x.broker) + '</span></td><td>' + x.qty + '</td><td>' + px(x.price) + '</td><td>' + tm(x.t) + ' <span class="dim">' + short(x.session) + '</span></td><td>' + px(x.last) + '</td><td>' + usd(x.unrealized, true) + '</td></tr>';
+    }).join('') : '<tr><td colspan="6" class="dim l">Nothing open.</td></tr>') +
+      (data.fills.some(function(f){ return f.source === 'hand'; }) ? '<tr><td colspan="6" class="l note">Fills you added by hand: ' + data.fills.filter(function(f){ return f.source === 'hand'; }).slice(0, 12).map(function(f){
+        return esc(f.sym) + ' ' + f.side + ' ' + f.qty + ' @ ' + px(f.price) + ' <a href="#" data-del="' + esc(f.id) + '" style="color:#ff8a80">delete</a>'; }).join(' · ') + '</td></tr>' : '');
+    [].forEach.call(document.querySelectorAll('[data-del]'), function(a){ a.onclick = function(e){ e.preventDefault(); if (confirm('Delete this hand-added fill?')) api('/api/trading', {action: 'delete', id: a.dataset.del}).then(set); }; });
+  }
+  $('aGo').onclick = function(){
+    $('aMsg').textContent = '';
+    api('/api/trading', {action: 'add', sym: $('aSym').value, side: $('aSide').value, qty: $('aQty').value, price: $('aPx').value,
+      when: $('aWhen').value, broker: $('aBroker').value, commission: $('aFee').value}).then(function(d){ set(d); $('aMsg').textContent = 'Added.'; $('aQty').value = ''; $('aPx').value = ''; })
+      .catch(function(e){ $('aMsg').textContent = e.message; });
+  };
+
+  // ------------------------------------------------------------ stats
+  function stat(b){ return b && b.n ? b : null; }
+  function paintStats(){
+    var S = data.summary, src2 = S[sessK];
+    $('sessTiles').innerHTML = SESS.map(function(s){
+      var b = stat(src2[s[0]]);
+      return '<div class="tile"><div class="k">' + s[1] + '</div><div class="v">' + (b ? usd(b.pnl, true) : '<span class="dim">–</span>') + '</div><div class="s">' +
+        (b ? b.n + ' trades · ' + pct(b.wins, b.n) + ' won<br>best ' + usd(b.best, true) + ' · worst ' + usd(b.worst, true) : 'no trades') + '</div></div>';
+    }).join('');
+    function table(id, obj, label){
+      var keys = Object.keys(obj).sort(function(a, b){ return obj[b].pnl - obj[a].pnl; });
+      $(id).innerHTML = '<tr><th class="l">' + label + '</th><th>Trades</th><th>Won</th><th>Total</th><th>Average</th><th>Best</th><th>Worst</th></tr>' + (keys.length ? keys.map(function(k){
+        var b = obj[k]; return '<tr><td class="l"><b>' + esc(k) + '</b></td><td>' + b.n + '</td><td>' + pct(b.wins, b.n) + '</td><td>' + usd(b.pnl, true) + '</td><td>' + usd(b.pnl / b.n, true) + '</td><td>' + usd(b.best, true) + '</td><td>' + usd(b.worst, true) + '</td></tr>';
+      }).join('') : '<tr><td colspan="7" class="dim l">No finished trades yet.</td></tr>');
+    }
+    table('tagT', S.by_tag, 'Tag'); table('symT', S.by_sym, 'Stock');
+    var D = S.days;
+    $('dayT').innerHTML = '<tr><th class="l">Day</th><th>Total</th>' + SESS.map(function(s){ return '<th>' + s[1].split(' ')[0] + '</th>'; }).join('') + '<th>Trades</th><th>Won</th></tr>' + (D.length ? D.map(function(d){
+      return '<tr><td class="l">' + new Date(d.day + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'}) + '</td><td><b>' + usd(d.pnl, true) + '</b></td>' +
+        SESS.map(function(s){ var b = d.sessions[s[0]]; return '<td>' + (b ? usd(b.pnl, true) : '<span class="dim">–</span>') + '</td>'; }).join('') + '<td>' + d.n + '</td><td>' + pct(d.wins, d.n) + '</td></tr>';
+    }).join('') : '<tr><td colspan="8" class="dim l">No finished trades yet.</td></tr>');
+    dayChart(D.slice().reverse());
+  }
+  function dayChart(D){
+    var cv = $('dayChart'), W = cv.parentNode.clientWidth - 20, H = 160, dpr = window.devicePixelRatio || 1;
+    cv.style.height = H + 'px'; cv.width = W * dpr; cv.height = H * dpr;
+    var c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    c.font = '10px "IBM Plex Mono", Menlo, monospace'; c.fillStyle = '#6f8aa3';
+    if (!D.length) { c.fillText('Your daily results will draw here.', 6, 20); return; }
+    var run = 0, cum = D.map(function(d){ run += d.pnl; return run; });
+    var lo = Math.min(0, Math.min.apply(null, cum), Math.min.apply(null, D.map(function(d){ return d.pnl; })));
+    var hi = Math.max(0, Math.max.apply(null, cum), Math.max.apply(null, D.map(function(d){ return d.pnl; })));
+    if (hi === lo) hi = lo + 1;
+    var x0 = 60, x1 = W - 8, y0 = 8, y1 = H - 18, n = D.length, bw = (x1 - x0) / n;
+    var Y = function(v){ return y1 - (v - lo) / (hi - lo) * (y1 - y0); };
+    c.strokeStyle = '#164060'; c.beginPath(); c.moveTo(x0, Y(0) + .5); c.lineTo(x1, Y(0) + .5); c.stroke();
+    c.textAlign = 'right'; c.textBaseline = 'middle';
+    [hi, 0, lo].forEach(function(v){ c.fillText((v < 0 ? '-$' : '$') + Math.abs(Math.round(v)).toLocaleString(), x0 - 6, Y(v)); });
+    D.forEach(function(d, i){ c.fillStyle = d.pnl >= 0 ? 'rgba(0,255,65,.35)' : 'rgba(255,59,48,.45)'; var y = Y(Math.max(0, d.pnl)); c.fillRect(x0 + i * bw + bw * .2, y, bw * .6, Math.abs(Y(d.pnl) - Y(0))); });
+    c.strokeStyle = '#00e5ff'; c.lineWidth = 2; c.beginPath();
+    cum.forEach(function(v, i){ var x = x0 + i * bw + bw / 2; if (i === 0) c.moveTo(x, Y(v)); else c.lineTo(x, Y(v)); }); c.stroke();
+    c.fillStyle = '#6f8aa3'; c.textAlign = 'left'; c.textBaseline = 'top';
+    c.fillText(D[0].day, x0, y1 + 4); c.textAlign = 'right'; c.fillText(D[n - 1].day, x1, y1 + 4);
+  }
+
+  // ------------------------------------------------------------ calculator (all in the browser)
+  var calcInit = false;
+  function calc(){
+    if (!calcInit && data) { $('cAcct').value = data.settings.account; $('cRisk').value = data.settings.risk; calcInit = true; }
+    var acct = +$('cAcct').value, r = +$('cRisk').value, risk = $('cRiskU').value === '%' ? acct * r / 100 : r;
+    var e = +$('cEntry').value, s = +$('cStop').value, per = Math.abs(e - s);
+    if (!e || !s || !per || !risk) { $('calcOut').innerHTML = '<div class="note">Fill in the entry and stop prices.</div>'; return; }
+    var sh = Math.floor(risk / per), cost = sh * e, long = s < e;
+    var t = function(m){ return long ? e + per * m : e - per * m; };
+    $('calcOut').innerHTML = '<div class="tile"><div class="k">Shares</div><div class="v">' + sh.toLocaleString() + '</div><div class="s">' + (long ? 'buy (stop below)' : 'short (stop above)') + '</div></div>' +
+      '<div class="tile"><div class="k">Position size</div><div class="v">' + usd(cost) + '</div><div class="s">' + (acct ? Math.round(cost / acct * 100) + '% of the account' : '') + (acct && cost > acct ? ' <span class="err">more than the account</span>' : '') + '</div></div>' +
+      '<div class="tile"><div class="k">If the stop hits</div><div class="v dn">-' + usd(sh * per) + '</div><div class="s">risk per share ' + px(per) + '</div></div>' +
+      '<div class="tile"><div class="k">Targets</div><div class="s" style="font-size:12px;line-height:1.6">1:1 ' + px(t(1)) + ' (+' + usd(sh * per) + ')<br>2:1 ' + px(t(2)) + ' (+' + usd(sh * per * 2) + ')<br>3:1 ' + px(t(3)) + ' (+' + usd(sh * per * 3) + ')</div></div>';
+  }
+  ['cAcct','cRisk','cRiskU','cEntry','cStop'].forEach(function(id){ $(id).addEventListener('input', calc); });
+
+  // ------------------------------------------------------------ settings / loss limit
+  var limitInit = false;
+  function limits(){
+    var st = data.settings;
+    if (!limitInit) {
+      $('lOn').checked = st.loss_on; $('lAmt').value = st.loss_limit; $('lPause').checked = st.pause_algos;
+      $('aOn').checked = st.algo_on; $('aAmt').value = st.algo_limit; $('sIb').checked = st.ibkr_fills; $('sWb').checked = st.webull_fills; limitInit = true;
+    }
+    $('algoToday').innerHTML = 'Paper algos today: ' + ['ibkr','webull'].map(function(n){
+      var a = data.algos[n]; return n.toUpperCase() + ' ' + (a ? usd(a.total, true) + (a.killed ? ' <span class="err">(stopped)</span>' : '') : '<span class="dim">not running</span>');
+    }).join(' · ');
+  }
+  $('lSave').onclick = function(){
+    api('/api/trading', {action: 'settings', settings: {loss_on: $('lOn').checked, loss_limit: $('lAmt').value, pause_algos: $('lPause').checked,
+      algo_on: $('aOn').checked, algo_limit: $('aAmt').value, ibkr_fills: $('sIb').checked, webull_fills: $('sWb').checked,
+      account: $('cAcct').value || data.settings.account, risk: $('cRiskU').value === '$' ? ($('cRisk').value || data.settings.risk) : data.settings.risk}})
+      .then(function(d){ set(d); $('lMsg').textContent = 'Saved.'; setTimeout(function(){ $('lMsg').textContent = ''; }, 3000); })
+      .catch(function(e){ $('lMsg').textContent = e.message; });
+  };
+
+  // ------------------------------------------------------------ leaderboard
+  function spark(curve){
+    if (!curve || curve.length < 2) return '';
+    var run = 0, pts = curve.map(function(p){ run += p[1]; return run; }), lo = Math.min.apply(null, pts.concat(0)), hi = Math.max.apply(null, pts.concat(0)), w = 90, h = 22;
+    if (hi === lo) hi = lo + 1;
+    var d = pts.map(function(v, i){ return (i ? 'L' : 'M') + (i / (pts.length - 1) * w).toFixed(1) + ',' + (h - (v - lo) / (hi - lo) * h).toFixed(1); }).join('');
+    return '<svg width="' + w + '" height="' + h + '" style="vertical-align:middle"><path d="' + d + '" fill="none" stroke="' + (run >= 0 ? '#00ff41' : '#ff3b30') + '" stroke-width="1.5"/></svg>';
+  }
+  function lb(L){
+    var s = L.status || {};
+    $('lbMsg').innerHTML = s.running ? 'Running ' + esc(s.running) + '… (one at a time; a few minutes in all)' : (L.ran ? 'Last run ' + tm(L.ran) : 'Not run yet: press Run now, or wait for 8:30 pm ET.') + (s.note ? ' <span class="err">' + esc(s.note) + '</span>' : '');
+    $('lbT').innerHTML = '<tr><th>#</th><th class="l">Strategy</th><th>Stock</th><th>Last 5 days</th><th>Last 20 days</th><th>All days</th><th>Trades (20d)</th><th>Won</th><th>Green days</th><th>Running total</th></tr>' + (L.rows.length ? L.rows.map(function(r, i){
+      if (r.error && !r.all.days) return '<tr><td>' + (i + 1) + '</td><td class="l">' + esc(r.name || r.file) + ' <span class="dim">' + esc(r.algo) + '</span></td><td>' + esc(r.symbol) + '</td><td colspan="7" class="l err">' + esc(r.error) + '</td></tr>';
+      return '<tr><td>' + (i + 1) + '</td><td class="l"><b>' + esc(r.name || r.file) + '</b> <span class="dim">' + esc(r.algo) + ' · ' + esc(r.file) + '</span>' + (r.running ? ' <span class="pill p-run">running</span>' : '') + '</td><td>' + esc(r.symbol) +
+        '</td><td>' + usd(r.d5.pnl, true) + '</td><td><b>' + usd(r.d20.pnl, true) + '</b></td><td>' + usd(r.all.pnl, true) + '</td><td>' + r.d20.trades + '</td><td>' + (r.d20.win_rate == null ? '–' : r.d20.win_rate + '%') +
+        '</td><td>' + r.d20.green_days + ' of ' + r.d20.days + '</td><td>' + spark(r.curve) + '</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="dim l">No results yet.</td></tr>');
+  }
+  function loadLb(){ api('/api/trading/leaderboard').then(lb).catch(function(){}); }
+  $('lbRun').onclick = function(){ api('/api/trading', {action: 'leaderboard'}).then(lb).catch(function(e){ $('lbMsg').textContent = e.message; }); };
+
+  // ------------------------------------------------------------ replay
+  var R = {acc: 0, pts: [], i: 0, speed: 10, timer: 0, pos: 0, entry: 0, log: [], realized: 0, t0: 0, t1: 0};
+  function rLoad(night, sym){
+    var q = '/api/trading/replay?night=' + encodeURIComponent(night || '') + '&sym=' + encodeURIComponent(sym || '');
+    api(q).then(function(d){
+      $('rNight').innerHTML = (d.nights || []).map(function(n){ return '<option' + (n === d.night ? ' selected' : '') + '>' + n + '</option>'; }).join('') || '<option value="">no nights recorded yet</option>';
+      $('rSym').innerHTML = (d.syms || []).map(function(s){ return '<option' + (s === d.sym ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
+      if (!d.sym && d.syms && d.syms.length) return rLoad(d.night, d.syms.indexOf('SPY') >= 0 ? 'SPY' : d.syms[0]);
+      R.pts = d.points || []; R.t0 = d.t0; R.t1 = d.t1; rReset();
+      if (d.error) $('rInfo').innerHTML = '<span class="dim">' + esc(d.error) + '</span>';
+    }).catch(function(){ $('rInfo').textContent = 'Could not reach the Mac.'; });
+  }
+  function rReset(){ clearInterval(R.timer); R.timer = 0; R.i = Math.min(1, R.pts.length); R.pos = 0; R.entry = 0; R.realized = 0; R.log = []; $('rPlay').textContent = 'Play'; rDraw(); }
+  function rNow(){ return R.pts[Math.max(0, R.i - 1)]; }
+  function sessName(ms){ var d = new Date(ms), p = {}; new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hourCycle: 'h23'}).formatToParts(d).forEach(function(x){ p[x.type] = +x.value; });
+    var m = p.hour * 60 + p.minute; return m < 240 || m >= 1200 ? 'overnight' : m < 570 ? 'pre-market' : m < 960 ? 'regular' : 'after-hours'; }
+  function rDraw(){
+    var cv = $('rChart'), W = cv.parentNode.clientWidth - 20, H = 260, dpr = window.devicePixelRatio || 1;
+    cv.style.height = H + 'px'; cv.width = W * dpr; cv.height = H * dpr;
+    var c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    c.font = '10px "IBM Plex Mono", Menlo, monospace';
+    if (R.pts.length < 2) { c.fillStyle = '#6f8aa3'; c.fillText('No prices for this stock that night.', 6, 20); $('rInfo').textContent = ''; $('rPos').textContent = ''; return; }
+    var all = R.pts, lo = Infinity, hi = -Infinity;
+    all.forEach(function(p){ if (p[1] < lo) lo = p[1]; if (p[1] > hi) hi = p[1]; });
+    var pad = (hi - lo) * .08 || hi * .001; lo -= pad; hi += pad;
+    var x0 = 6, x1 = W - 66, y0 = 8, y1 = H - 20;
+    var X = function(t){ return x0 + (t - R.t0) / (R.t1 - R.t0) * (x1 - x0); }, Y = function(v){ return y1 - (v - lo) / (hi - lo) * (y1 - y0); };
+    // session bands
+    [[16,20,'after-hours','rgba(255,182,72,.06)'],[20,28,'overnight','rgba(179,157,255,.07)'],[28,33.5,'pre-market','rgba(0,229,255,.06)']].forEach(function(b){
+      var a = R.t0 + (b[0] - 16) * 3600e3, z = R.t0 + (b[1] - 16) * 3600e3; if (a > R.t1) return;
+      c.fillStyle = b[3]; c.fillRect(X(a), y0, X(Math.min(z, R.t1)) - X(a), y1 - y0); c.fillStyle = '#6f8aa3'; c.fillText(b[2], X(a) + 4, y0 + 10); });
+    var openT = R.t1 - 3600e3; c.strokeStyle = 'rgba(0,229,255,.6)'; c.beginPath(); c.moveTo(X(openT), y0); c.lineTo(X(openT), y1); c.stroke(); c.fillStyle = '#00e5ff'; c.fillText('9:30 open', X(openT) + 4, y1 - 4);
+    c.strokeStyle = '#164060'; c.fillStyle = '#6f8aa3'; c.textAlign = 'left';
+    [hi - pad, lo + pad].forEach(function(v){ c.fillText(px(v), x1 + 6, Y(v)); });
+    var shown = all.slice(0, R.i), first = all[0][1], last = rNow();
+    c.strokeStyle = last[1] >= first ? '#00ff41' : '#ff3b30'; c.lineWidth = 1.6; c.beginPath();
+    shown.forEach(function(p, i){ if (i === 0) c.moveTo(X(p[0]), Y(p[1])); else { c.lineTo(X(p[0]), Y(shown[i - 1][1])); c.lineTo(X(p[0]), Y(p[1])); } }); c.stroke();
+    c.setLineDash([3, 4]); c.strokeStyle = '#ffc400'; c.beginPath(); c.moveTo(x0, Y(first) + .5); c.lineTo(x1, Y(first) + .5); c.stroke(); c.setLineDash([]);
+    c.fillStyle = '#ffc400'; c.fillText('4 pm ' + px(first), x0 + 4, Y(first) - 6);
+    R.log.forEach(function(l){ c.fillStyle = l.k === 'buy' ? '#00ff41' : l.k === 'short' ? '#ff3b30' : '#cfe0ee'; c.beginPath(); c.arc(X(l.t), Y(l.p), 4, 0, 6.3); c.fill(); });
+    c.fillStyle = '#f2f2f2'; c.beginPath(); c.arc(X(last[0]), Y(last[1]), 3, 0, 6.3); c.fill();
+    var mv = (last[1] / first - 1) * 100;
+    $('rInfo').innerHTML = '<b>' + tm(last[0]) + '</b> <span class="dim">' + sessName(last[0]) + '</span> · ' + px(last[1]) + ' <span class="' + (mv >= 0 ? 'up' : 'dn') + '">' + (mv >= 0 ? '+' : '') + mv.toFixed(2) + '% vs 4 pm</span>' + (R.i >= all.length ? ' · <b>end of the night</b>' : '');
+    var open = R.pos ? (last[1] - R.entry) * R.pos : 0;
+    $('rPos').innerHTML = 'Practice (100 shares): ' + (R.pos > 0 ? 'long from ' + px(R.entry) : R.pos < 0 ? 'short from ' + px(R.entry) : 'flat') + ' · open ' + usd(open, true) + ' · closed ' + usd(R.realized, true) + ' · <b>total ' + usd(R.realized + open, true) + '</b>';
+  }
+  // speed 10x = 10 minutes of the night every minute (1 minute every 6 seconds); 300x = 5 minutes a second
+  function rStep(){ R.acc += R.speed * 0.25 / 60; var add = Math.floor(R.acc); if (!add) return; R.acc -= add; R.i = Math.min(R.pts.length, R.i + add); rDraw(); if (R.i >= R.pts.length) { clearInterval(R.timer); R.timer = 0; $('rPlay').textContent = 'Play'; } }
+  $('rPlay').onclick = function(){
+    if (R.timer) { clearInterval(R.timer); R.timer = 0; this.textContent = 'Play'; return; }
+    if (R.i >= R.pts.length) rReset();
+    this.textContent = 'Pause'; R.acc = 0; R.timer = setInterval(rStep, 250);
+  };
+  $('rReset').onclick = rReset;
+  [].forEach.call(document.querySelectorAll('#rSpeed button'), function(b){
+    b.onclick = function(){ [].forEach.call(document.querySelectorAll('#rSpeed button'), function(x){ x.classList.toggle('on', x === b); }); R.speed = +b.dataset.k; if (R.timer) { $('rPlay').click(); $('rPlay').click(); } };
+  });
+  function act(k){
+    var p = rNow(); if (!p) return;
+    if (R.pos) { R.realized += (p[1] - R.entry) * R.pos; }
+    R.pos = k === 'buy' ? 100 : k === 'short' ? -100 : 0; R.entry = p[1];
+    R.log.push({k: k, t: p[0], p: p[1]}); rDraw();
+  }
+  $('rBuy').onclick = function(){ act('buy'); }; $('rShort').onclick = function(){ act('short'); }; $('rFlat').onclick = function(){ act('flat'); };
+  $('rNight').onchange = function(){ rLoad(this.value, $('rSym').value); };
+  $('rSym').onchange = function(){ rLoad($('rNight').value, this.value); };
+
+  // ------------------------------------------------------------ wiring
+  function set(d){ data = d; paint(); }
+  function paint(){
+    if (!data) return;
+    $('when').textContent = 'Updated ' + new Date(data.at).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+    [today, src, trips, paintStats, calc, limits].forEach(function(f){ try { f(); } catch (e) { console.error(e); } });
+  }
+  function load(){
+    if (document.hidden && data) return;
+    var focus = document.activeElement && /^(INPUT|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.closest('#tripT');
+    if (focus) return;                       // don't redraw while you're typing a note
+    api('/api/trading').then(set).catch(function(){ $('when').textContent = 'Could not reach the Mac.'; });
+  }
+  [].forEach.call(document.querySelectorAll('#sessSeg button'), function(b){
+    b.onclick = function(){ [].forEach.call(document.querySelectorAll('#sessSeg button'), function(x){ x.classList.toggle('on', x === b); }); sessK = b.dataset.k; paintStats(); };
+  });
+  window.addEventListener('resize', function(){ if (data) { paintStats(); rDraw(); } });
+  load(); loadLb(); rLoad();
+  setInterval(load, 60000); setInterval(loadLb, 30000);
+})();
+</script>
+<script src="subtabs.js"></script>
+<script src="mobile.js"></script>
+<script src="trading-plus.js"></script>
+<script src="hedge-ui.js"></script>
+<script src="navbar.js"></script>
+<script src="tradetools.js"></script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Channel voices</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- Alex's channel voices (jb-anchor): pick the two anchors by ear. Natural voices are Piper voices made on
+     the Mac itself (free, no internet); Mac voices are the built-in ones like Samantha. Saved on the Mac. -->
+<style>
+  :root { --bg:#04101f; --panel:#071a30; --line:#164060; --white:#f2f2f2; --dim:#8fa6bc; --green:#3ee07a;
+          --red:#ff5c52; --cyan:#5cc8db; --amber:#f2b84b; --purple:#a78bfa; }
+  html, body { margin:0; background:var(--bg); color:var(--white); font-family:-apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:26px; margin:6px 0 4px; }
+  p { color:var(--dim); font-size:15px; line-height:1.45; margin:6px 0 14px; }
+  .top a { color:var(--cyan); font-weight:600; text-decoration:none; margin-right:16px; font-size:15px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:12px 0; }
+  .card h2 { font-size:16px; margin:0 0 10px; color:var(--cyan); text-transform:uppercase; letter-spacing:.5px; }
+  .row { display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
+  .row:first-of-type { border-top:0; }
+  .nm { flex:1 1 180px; font-size:17px; font-weight:600; }
+  .tag { font-size:12px; font-weight:700; padding:2px 8px; border-radius:20px; margin-left:6px; vertical-align:2px; }
+  .tag.piper { background:rgba(62,224,122,.16); color:var(--green); }
+  .tag.say { background:rgba(143,166,188,.16); color:var(--dim); }
+  button, select { font:inherit; font-size:15px; font-weight:600; border-radius:9px; border:1px solid var(--line); background:#0a2442; color:var(--white); padding:9px 14px; }
+  button.pick { background:var(--cyan); color:var(--bg); border:0; }
+  button.on { outline:2px solid var(--amber); }
+  label { font-size:15px; }
+  select { width:100%; margin:4px 0 12px; }
+  .msg { color:var(--amber); font-size:14px; min-height:20px; }
+  .ok { color:var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><a href="channel.html">‹ Back to the channel</a><a href="/">Board</a></div>
+  <h1>Channel voices</h1>
+  <p>Pick the two anchors by ear. <b>Natural</b> voices are Piper voices made on the Mac itself (free, no internet).
+     <b>Mac voice</b> is the built-in one (Samantha) that the channel always falls back to if anything goes wrong.
+     Anchor 1 reads markets, futures, movers, picks and deep dives; anchor 2 reads the news, what's coming up, specials and explainers.</p>
+  <div class="msg" id="note"></div>
+  <div class="card">
+    <h2>Try a voice</h2>
+    <div id="list">Loading…</div>
+  </div>
+  <div class="card">
+    <h2>Your anchors</h2>
+    <label>Anchor 1 (markets)</label><select id="a"></select>
+    <label>Anchor 2 (news and coming up)</label><select id="b"></select>
+    <label>Speaking speed</label>
+    <select id="speed"><option value="0.9">A little slower</option><option value="1">Normal</option><option value="1.1">A little faster</option></select>
+    <label><input type="checkbox" id="chime"> Chime between stories (a longer one for BREAKING)</label>
+    <div style="margin-top:14px"><button class="pick" id="save">Save</button> <span class="msg" id="saved"></span></div>
+  </div>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var player = new Audio();
+  function get(u) { return fetch(u, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+    if (r.status === 401) { location.href = '/login?next=' + encodeURIComponent('/channel-voices.html'); throw 0; } return r.json(); }); }
+  function load() {
+    get('/api/channel/voices').then(function (d) {
+      var L = $('list'); L.innerHTML = '';
+      if (!d.piper) $('note').textContent = 'Natural voices are not installed on the Mac yet, so the channel uses the Mac voice. Run the batch I install to add them.';
+      else if (d.piper_rtf && d.piper_rtf > 0.8) $('note').textContent = 'This Mac makes natural voices slowly, so the channel starts on the Mac voice. You can still pick a natural voice below.';
+      (d.voices || []).forEach(function (v) {
+        var r = document.createElement('div'); r.className = 'row';
+        var n = document.createElement('div'); n.className = 'nm'; n.textContent = v.name.split(' · ')[0];
+        var t = document.createElement('span'); t.className = 'tag ' + v.kind; t.textContent = v.kind === 'piper' ? 'natural' : 'Mac voice'; n.appendChild(t);
+        var b = document.createElement('button'); b.textContent = '▶ Sample';
+        b.onclick = function () { sample(v.id, b); };
+        r.appendChild(n); r.appendChild(b); L.appendChild(r);
+      });
+      ['a', 'b'].forEach(function (k) {
+        var s = $(k); s.innerHTML = '';
+        (d.voices || []).forEach(function (v) { var o = document.createElement('option'); o.value = v.id; o.textContent = v.name; s.appendChild(o); });
+        s.value = d.cfg[k];
+      });
+      $('speed').value = String(d.cfg.speed || 1) === '1' ? '1' : String(d.cfg.speed);
+      $('chime').checked = d.cfg.chime !== false;
+    }).catch(function () {});
+  }
+  function sample(id, btn) {
+    btn.textContent = 'Making…';
+    get('/api/channel/voices?sample=' + encodeURIComponent(id)).then(function (d) {
+      btn.textContent = '▶ Sample';
+      if (!d.ok) { $('note').textContent = d.error || 'That voice could not be made.'; return; }
+      player.src = '/api/channel/audio?f=' + encodeURIComponent(d.f); player.play().catch(function () {});
+    }).catch(function () { btn.textContent = '▶ Sample'; });
+  }
+  $('save').onclick = function () {
+    fetch('/api/channel/voices', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ a: $('a').value, b: $('b').value, speed: parseFloat($('speed').value), chime: $('chime').checked }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        $('saved').textContent = d.ok ? 'Saved. The next show uses these voices.' : (d.error || 'Not saved.');
+        $('saved').className = d.ok ? 'msg ok' : 'msg';
+      }).catch(function () { $('saved').textContent = 'Not saved: can\'t reach the board.'; });
+  };
+  load();
+})();
+</script>
+</body>
+</html>

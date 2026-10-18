@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · Chart</title>
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- Chart page (jb-navchart): type any ticker and see its line chart. Prices from IBKR first
+     (with the overnight venue), Yahoo when IBKR can't. /api/plus/chartpage in gateway/chartpage.py
+     Order flow buttons (jb-orderflow): /api/plus/chartpage/flow, gateway/orderflow.py -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 12px 24px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid #2f7a44;padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  header a{color:var(--cyan);text-decoration:none;font-size:12px;margin-left:12px;}
+  form{display:flex;gap:8px;margin:12px 0 8px;}
+  #sym{flex:1;min-width:0;background:#020a14;border:1px solid var(--line-bright);color:#f2f2f2;font:inherit;font-size:18px;padding:10px 12px;border-radius:6px;text-transform:uppercase;}
+  #go{background:#1e5631;border:0;color:#fff;font:inherit;font-size:15px;font-weight:700;padding:0 18px;border-radius:6px;cursor:pointer;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;}
+  .chips button{background:transparent;border:1px solid var(--line-bright);color:#8fd8ff;font:inherit;font-size:13px;padding:6px 12px;border-radius:14px;cursor:pointer;min-height:32px;}
+  .chips button.on{border-color:#39e07a;color:#39e07a;}
+  .rng{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px;}
+  .rng button{background:transparent;border:0;color:#8fd8ff;font:inherit;font-size:14px;padding:7px 10px;border-radius:5px;cursor:pointer;min-height:34px;}
+  .rng button.on{background:#1e5631;color:#fff;}
+  #head{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin:6px 2px;}
+  #hSym{font-size:22px;font-weight:700;color:#5fc97e;letter-spacing:1px;}
+  #hPx{font-size:22px;font-weight:700;}
+  #hChg{font-size:14px;font-weight:700;}
+  #hName{color:var(--dim);font-size:12px;width:100%;}
+  #box{position:relative;height:56vh;min-height:280px;max-height:620px;background:var(--panel);border:1px solid var(--line);border-radius:8px;touch-action:pan-y;}
+  #cv{position:absolute;inset:0;width:100%;height:100%;}
+  #tip{position:absolute;top:6px;left:8px;background:rgba(2,10,20,.9);border:1px solid var(--line-bright);border-radius:6px;padding:5px 8px;font-size:12px;display:none;pointer-events:none;line-height:1.45;}
+  #msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--dim);}
+  #src{color:var(--dim);font-size:11px;margin:6px 2px;line-height:1.5;}
+  #src b{color:#8fd8ff;font-weight:600;}
+  .note{color:var(--dim);font-size:11px;line-height:1.5;margin:10px 2px;}
+  /* order flow (jb-orderflow) */
+  .flw{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 8px;}
+  .flw .lbl{color:var(--dim);font-size:12px;margin-right:4px;}
+  .flw button{background:transparent;border:1px solid var(--line-bright);color:#8fd8ff;font:inherit;font-size:13px;padding:6px 10px;border-radius:5px;cursor:pointer;min-height:34px;}
+  .flw button.on{background:#1e5631;border-color:#1e5631;color:#fff;}
+  .flw .hint{color:var(--dim);font-size:11px;margin-left:4px;}
+  .cols{display:flex;gap:12px;align-items:flex-start;}
+  .left{flex:1;min-width:0;}
+  #side{width:270px;flex:none;}
+  #side:empty{display:none;}
+  @media (max-width:900px){.cols{display:block;}#side{width:auto;margin-top:8px;}}
+  #pressBox{position:relative;height:110px;margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;display:none;}
+  #pressBox canvas{position:absolute;left:0;top:22px;width:100%;height:calc(100% - 22px);}
+  .ct{color:#8fd8ff;font-size:12px;letter-spacing:1px;padding:7px 10px 0;}
+  .ct .tag{color:var(--dim);font-size:10px;margin-left:6px;letter-spacing:0;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:0 0 10px;margin-bottom:8px;}
+  .card .in{padding:6px 10px 0;}
+  .ba{display:flex;justify-content:space-between;}
+  .ba .k{color:var(--dim);font-size:11px;}.ba .big{font-size:20px;font-weight:700;}.ba .s{color:var(--dim);font-size:11px;}
+  .bar{height:8px;background:var(--red);border-radius:4px;margin:8px 0 4px;overflow:hidden;}.bar span{display:block;height:100%;background:var(--green);}
+  .sm{color:var(--dim);font-size:11px;line-height:1.45;}
+  .card table{width:100%;border-collapse:collapse;font-size:12px;}.card td{padding:3px 2px;}.card td.n{text-align:right;}
+  .row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;}
+  #flowMsg{color:var(--amber);font-size:11px;margin:6px 2px;line-height:1.5;}
+  #flowMsg:empty{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>CHART</h1><div><a href="./">Full board</a><a href="phone.html">Phone</a></div></header>
+  <form id="f" autocomplete="off"><input id="sym" placeholder="Ticker, e.g. TQQQ" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="15"><button id="go" type="submit">Show</button></form>
+  <div class="chips" id="recent"></div>
+  <div class="rng" id="rng"></div>
+  <div class="flw" id="flw"></div>
+  <div id="head"><span id="hSym"></span><span id="hPx"></span><span id="hChg"></span><span id="hName"></span></div>
+  <div class="cols"><div class="left">
+  <div id="box"><canvas id="cv"></canvas><div id="tip"></div><div id="msg">Type a ticker above.</div></div>
+  <div id="pressBox"><div class="ct">BUYERS VS SELLERS<span class="tag">line up = more shares bought at the ask than sold at the bid</span></div><canvas id="pcv"></canvas></div>
+  <div id="flowMsg"></div>
+  <div id="src"></div>
+  </div><div id="side"></div></div>
+  <div class="note">Shaded, with a paler line = outside regular hours (overnight, pre-market, after-hours). Cyan dashed line = 9:30 am ET open. Grey dashed line = the price at the start of the range. Touch or point at the chart to read a price. 1D and 5D refresh every minute. 5Y = one point a week, All = the full history IBKR or Yahoo has, one point a month. Prices come from IBKR (including the overnight venue) when it can supply them, otherwise from Yahoo; the line under the chart says which. Futures: ES=F, NQ=F, YM=F, RTY=F. Indexes: ^N225, ^VIX.<br>Order flow (1D only, IBKR live prices only): the buttons next to "Order flow" turn each part on or off. Buy/Sell line = shares bought at the ask minus shares sold at the bid, added up since 8 pm ET (6 pm for futures) (dashed part = estimated from 1-minute bars, before the page started watching). Big trades = trades 10x the day's average size and worth $100k+, circled on the line (green buy, red sell, amber in between). Volume at price = side bars showing shares traded at each price today, busiest in amber. Bid/Ask = the best bid and ask now, with shares on each side. NYSE stocks your IBKR plan lacks, indexes and crypto can't show order flow.</div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var RANGES = ['1D', '5D', '1M', '6M', '1Y', '5Y', 'ALL'];
+  var GREEN = '#00ff41', RED = '#ff3b30', GREEN_X = '#a8ffc0', RED_X = '#ffa39c', DIM = '#6f8aa3', GRID = '#0f2c47', TEXT = '#cfe0ee';
+  function $(id) { return document.getElementById(id); }
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  var recent = []; try { recent = JSON.parse(ls('jb_chart_recent') || '[]') || []; } catch (e) {}
+  if (!recent.length) recent = ['TQQQ', 'SQQQ', 'SOXL', 'SPY', 'QQQ', 'NQ=F'];
+  var range = ls('jb_chart_range') || '5D', sym = null, data = null, timer = 0, hover = null, seq = 0;
+  var qs = new URLSearchParams(location.search);
+  // ---- order flow (jb-orderflow): /api/plus/chartpage/flow, gateway/orderflow.py
+  var FLOW = [['press', 'Buy/Sell line'], ['prints', 'Big trades'], ['vap', 'Volume at price'], ['book', 'Bid/Ask']];
+  var flowOn = { press: true, prints: true, vap: true, book: true };
+  try { var fo = JSON.parse(ls('jb_chart_flow') || 'null'); if (fo) FLOW.forEach(function (f) { if (typeof fo[f[0]] === 'boolean') flowOn[f[0]] = fo[f[0]]; }); } catch (e) {}
+  var flow = null, flowTimer = 0, flowSeq = 0, G = null, paneHidden = false;
+  function anyFlow() { return flowOn.press || flowOn.prints || flowOn.vap || flowOn.book; }
+  function flowLive() { return range === '1D' && sym && anyFlow(); }
+
+  // ---- New York time
+  var fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+  var cacheET = {};
+  function et(t) {
+    var k = Math.floor(t / 60000); if (cacheET[k]) return cacheET[k];
+    var o = {}; fmt.formatToParts(new Date(t)).forEach(function (p) { o[p.type] = p.value; });
+    var h = +o.hour % 24, m = +o.minute;
+    var r = { wd: o.weekday, h: h, m: m, mins: h * 60 + m, day: o.month + ' ' + o.day };
+    cacheET[k] = r; return r;
+  }
+  function regular(t) { var e = et(t); return e.wd !== 'Sat' && e.wd !== 'Sun' && e.mins >= 570 && e.mins < 960; }
+  function session(t) {
+    var e = et(t);
+    if (e.wd === 'Sat' || e.wd === 'Sun') return 'weekend';
+    if (e.mins >= 570 && e.mins < 960) return 'regular hours';
+    if (e.mins >= 240 && e.mins < 570) return 'pre-market';
+    if (e.mins >= 960 && e.mins < 1200) return 'after-hours';
+    return 'overnight';
+  }
+  function fmtPrice(p) { return p >= 1000 ? p.toFixed(2) : p >= 1 ? p.toFixed(2) : p.toFixed(4); }
+  function local(t, withDay) {
+    var d = new Date(t), hm = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return withDay ? d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + hm : hm;
+  }
+
+  // ---- controls
+  function paintRecent() {
+    $('recent').innerHTML = recent.map(function (s) { return '<button type="button" data-s="' + s + '"' + (s === sym ? ' class="on"' : '') + '>' + s + '</button>'; }).join('');
+  }
+  function paintRanges() {
+    $('rng').innerHTML = RANGES.map(function (r) { return '<button type="button" data-r="' + r + '"' + (r === range ? ' class="on"' : '') + '>' + (r === 'ALL' ? 'All' : r) + '</button>'; }).join('');
+  }
+  function paintFlow() {
+    $('flw').innerHTML = '<span class="lbl">Order flow:</span>' + FLOW.map(function (f) {
+      return '<button type="button" data-f="' + f[0] + '"' + (flowOn[f[0]] ? ' class="on"' : '') + '>' + f[1] + '</button>';
+    }).join('') + (range !== '1D' ? '<span class="hint">shows on 1D</span>' : '');
+  }
+  $('flw').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    flowOn[b.dataset.f] = !flowOn[b.dataset.f]; ls('jb_chart_flow', JSON.stringify(flowOn));
+    paintFlow(); loadFlow(); draw();
+  });
+  $('recent').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) show(b.dataset.s); });
+  $('rng').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { range = b.dataset.r; ls('jb_chart_range', range); paintRanges(); paintFlow(); load(); loadFlow(); } });
+  $('f').addEventListener('submit', function (e) { e.preventDefault(); var v = $('sym').value.trim().toUpperCase(); if (v) { show(v); $('sym').blur(); } });
+
+  function show(s) {
+    s = String(s || '').trim().toUpperCase().replace(/[^A-Z0-9.\-^=]/g, '');
+    if (!s) return;
+    sym = s; $('sym').value = s;
+    recent = [s].concat(recent.filter(function (x) { return x !== s; })).slice(0, 8);
+    ls('jb_chart_recent', JSON.stringify(recent)); ls('jb_chart_last', s);
+    try { history.replaceState(null, '', '?sym=' + encodeURIComponent(s)); } catch (e) {}
+    paintRecent(); flow = null; load(); loadFlow();
+  }
+
+  function loadFlow() {
+    clearInterval(flowTimer);
+    if (!flowLive()) { flow = null; drawFlow(); return; }
+    var my = ++flowSeq, want = sym;
+    function get() {
+      if (document.hidden || paneHidden) return;
+      fetch('/api/plus/chartpage/flow?sym=' + encodeURIComponent(want), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && my === flowSeq && want === sym) { flow = d; drawFlow(); draw(); } })
+        .catch(function () {});
+    }
+    get(); flowTimer = setInterval(get, 5000);
+  }
+
+  function load(quiet) {
+    if (!sym) return;
+    var my = ++seq;
+    if (!quiet) { data = null; $('msg').style.display = 'flex'; $('msg').textContent = 'Getting ' + sym + ' prices…'; draw(); }
+    fetch('/api/plus/chartpage/bars?sym=' + encodeURIComponent(sym) + '&range=' + range, { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { if (r.status === 401) { location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search); return null; } return r.json(); })
+      .then(function (d) {
+        if (!d || my !== seq) return;
+        if (d.error && !(d.points || []).length) {
+          if (!quiet) { data = null; $('msg').style.display = 'flex'; $('msg').textContent = d.error; $('src').textContent = ''; head(); draw(); }
+          return;
+        }
+        data = d; $('msg').style.display = 'none'; head(); draw();
+        $('src').innerHTML = 'Prices: <b>' + (d.src || '') + '</b>' + (d.note ? ' · ' + d.note : '') + ' · updated ' + local(d.at || Date.now());
+      })
+      .catch(function () { if (!quiet && my === seq) { $('msg').style.display = 'flex'; $('msg').textContent = 'The board did not answer. Is the Mac on?'; } });
+    clearInterval(timer);
+    if (range === '1D' || range === '5D') timer = setInterval(function () { if (!document.hidden) load(true); }, 60000);
+  }
+
+  function pts() {
+    if (!data || !data.points) return [];
+    var p = data.points;
+    if (range === '1D' && p.length) { var t0 = p[p.length - 1].t - 24 * 3600e3; p = p.filter(function (x) { return x.t >= t0; }); }
+    return p;
+  }
+  function head() {
+    var p = pts();
+    $('hSym').textContent = sym || '';
+    $('hName').textContent = (data && data.name) || '';
+    if (p.length < 1) { $('hPx').textContent = ''; $('hChg').textContent = ''; return; }
+    var a = p[0].p, b = p[p.length - 1].p, ch = b - a, pc = a ? ch / a * 100 : 0;
+    $('hPx').textContent = fmtPrice(b);
+    $('hChg').textContent = (ch >= 0 ? '+' : '-') + fmtPrice(Math.abs(ch)) + ' (' + (pc >= 0 ? '+' : '') + pc.toFixed(2) + '%) ' + (range === 'ALL' ? 'all history' : range);
+    $('hChg').style.color = ch >= 0 ? GREEN : RED;
+  }
+
+  // ---- drawing
+  function draw() {
+    var box = $('box'), cv = $('cv'), W = box.clientWidth, H = box.clientHeight, dpr = window.devicePixelRatio || 1;
+    cv.width = W * dpr; cv.height = H * dpr;
+    var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    var p = pts(); if (p.length < 2) return;
+    var intraday = range === '1D' || range === '5D' || range === '1M';
+    var x0 = 8, x1 = W - 62, y0 = 14, y1 = H - 26;
+    var t0 = p[0].t, t1 = p[p.length - 1].t; if (t1 <= t0) t1 = t0 + 1;
+    var lo = Infinity, hi = -Infinity; p.forEach(function (q) { if (q.p < lo) lo = q.p; if (q.p > hi) hi = q.p; });
+    var pad = (hi - lo) * 0.08 || hi * 0.01 || 1; lo -= pad; hi += pad;
+    function X(t) { return x0 + (t - t0) / (t1 - t0) * (x1 - x0); }
+    function Y(v) { return y1 - (v - lo) / (hi - lo) * (y1 - y0); }
+    var up = p[p.length - 1].p >= p[0].p, color = up ? GREEN : RED, light = up ? GREEN_X : RED_X;
+    ctx.font = '11px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+    // grid + price axis
+    var step = nice((hi - lo) / 5);
+    ctx.strokeStyle = GRID; ctx.fillStyle = DIM; ctx.lineWidth = 1; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (var v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      var gy = Math.round(Y(v)) + 0.5; ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x1, gy); ctx.stroke(); ctx.fillText(fmtPrice(v), x1 + 6, gy);
+    }
+    // shading outside regular hours + 9:30 open lines
+    if (intraday) {
+      ctx.fillStyle = 'rgba(0,0,0,.28)';
+      for (var i = 1; i < p.length; i++) {
+        var a = p[i - 1], b = p[i];
+        if (!regular(b.t - 1)) ctx.fillRect(X(a.t), y0 - 14, Math.max(1, X(b.t) - X(a.t)), y1 - y0 + 14);
+      }
+      ctx.setLineDash([3, 3]); ctx.strokeStyle = 'rgba(0,229,255,.55)';
+      for (i = 1; i < p.length; i++) if (!regular(p[i - 1].t - 1) && regular(p[i].t - 1)) {
+        var ox = Math.round(X(p[i - 1].t)) + 0.5; ctx.beginPath(); ctx.moveTo(ox, y0 - 14); ctx.lineTo(ox, y1); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+    // time axis
+    ctx.fillStyle = DIM; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    var n = Math.max(2, Math.floor((x1 - x0) / 90)), lastLbl = '';
+    for (i = 0; i <= n; i++) {
+      var tt = t0 + (t1 - t0) * i / n, d = new Date(tt);
+      var lbl = range === '1D' ? local(tt) : range === '5D' ? d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.getHours() + 'h'
+        : range === '5Y' || range === 'ALL' ? d.toLocaleDateString([], { month: 'short', year: 'numeric' })
+        : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      if (lbl !== lastLbl) ctx.fillText(lbl, Math.min(Math.max(X(tt), x0 + 24), x1 - 24), y1 + 7);
+      lastLbl = lbl;
+    }
+    // start price
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = DIM;
+    var sy = Math.round(Y(p[0].p)) + 0.5; ctx.beginPath(); ctx.moveTo(x0, sy); ctx.lineTo(x1, sy); ctx.stroke(); ctx.setLineDash([]);
+    // fill + line
+    ctx.beginPath(); p.forEach(function (q, k) { if (k) ctx.lineTo(X(q.t), Y(q.p)); else ctx.moveTo(X(q.t), Y(q.p)); });
+    ctx.lineTo(X(t1), y1); ctx.lineTo(X(t0), y1); ctx.closePath();
+    var g = ctx.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, up ? 'rgba(0,255,65,.18)' : 'rgba(255,59,48,.18)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = 1.7; ctx.lineJoin = 'round';
+    var run = null;
+    for (i = 1; i < p.length; i++) {
+      var c = !intraday || regular(p[i].t - 1) ? color : light;
+      if (c !== run) { if (run) ctx.stroke(); run = c; ctx.strokeStyle = c; ctx.beginPath(); ctx.moveTo(X(p[i - 1].t), Y(p[i - 1].p)); }
+      ctx.lineTo(X(p[i].t), Y(p[i].p));
+    }
+    if (run) ctx.stroke();
+    G = { t0: t0, t1: t1, x0: x0, x1: x1, W: W };
+    if (range === '1D' && flow && flow.state !== 'unsupported') flowOnChart(ctx, X, Y, lo, hi, y0, y1, x1, t0);
+    (window.JBChartLayers || []).forEach(function (f) {      // jb-tools2: extra layers drawn by other files (your trades, levels)
+      try { f(ctx, { X: X, Y: Y, lo: lo, hi: hi, t0: t0, t1: t1, x0: x0, x1: x1, y0: y0, y1: y1, W: W, H: H, sym: sym, range: range, hover: hover, pts: p }); } catch (e) {}
+    });
+    // last price tag
+    var last = p[p.length - 1], ly = Y(last.p);
+    ctx.fillStyle = color; ctx.fillRect(x1 + 2, ly - 9, 60, 18);
+    ctx.fillStyle = '#04101f'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = 'bold 11px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+    ctx.fillText(fmtPrice(last.p), x1 + 5, ly);
+    // crosshair
+    if (hover != null) {
+      var best = p[0]; p.forEach(function (q) { if (Math.abs(X(q.t) - hover) < Math.abs(X(best.t) - hover)) best = q; });
+      var hx = Math.round(X(best.t)) + 0.5, hy = Y(best.p);
+      ctx.strokeStyle = 'rgba(207,224,238,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx, y0 - 14); ctx.lineTo(hx, y1); ctx.stroke();
+      ctx.fillStyle = TEXT; ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, 7); ctx.fill();
+      var pc = (best.p / p[0].p - 1) * 100;
+      $('tip').style.display = 'block';
+      $('tip').innerHTML = '<b>' + fmtPrice(best.p) + '</b> <span style="color:' + (pc >= 0 ? GREEN : RED) + '">' + (pc >= 0 ? '+' : '') + pc.toFixed(2) + '%</span><br>' +
+        local(best.t, true) + (intraday ? '<br><span style="color:' + DIM + '">' + session(best.t - 1) + '</span>' : '');
+      $('tip').style.left = (hx > W / 2 ? 8 : W - 8 - $('tip').offsetWidth) + 'px';
+    } else $('tip').style.display = 'none';
+  }
+  window.JBChartRedraw = function () { draw(); };
+  // volume at price (side bars) and big trades (circles) on the price chart
+  function flowOnChart(ctx, X, Y, lo, hi, y0, y1, x1, t0) {
+    if (flowOn.vap && flow.vap && flow.vap.length) {
+      var rows = Math.max(8, Math.floor((y1 - y0) / 13)), step = (hi - lo) / rows, bins = [], i, top = 0, mx = 0;
+      for (i = 0; i < rows; i++) bins.push(0);
+      flow.vap.forEach(function (v) { var k = Math.floor((v[0] - lo) / step); if (k >= 0 && k < rows) bins[k] += v[1]; });
+      bins.forEach(function (v, k) { if (v > mx) { mx = v; top = k; } });
+      if (mx > 0) {
+        var bw = Math.min(90, (x1 - 8) * 0.16), bh = (y1 - y0) / rows;
+        for (i = 0; i < rows; i++) {
+          if (!bins[i]) continue;
+          var w = bins[i] / mx * bw, yb = Y(lo + (i + 1) * step);
+          ctx.fillStyle = i === top ? 'rgba(255,182,72,.45)' : 'rgba(143,216,255,.22)';
+          ctx.fillRect(x1 - w, yb + 1, w, Math.max(1, bh - 2));
+        }
+        var yt = Y(lo + (top + 0.5) * step);
+        ctx.fillStyle = '#ffb648'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        var best = null;                     // the busiest single price inside the busiest bar
+        flow.vap.forEach(function (v) { if (Math.floor((v[0] - lo) / step) === top && (!best || v[1] > best[1])) best = v; });
+        ctx.fillText('most traded ' + fmtPrice(best ? best[0] : lo + (top + 0.5) * step) + ' ▸', x1 - bw - 4, yt);
+      }
+    }
+    if (flowOn.prints && flow.prints) {
+      ctx.lineWidth = 2;
+      flow.prints.forEach(function (q) {
+        if (q.t < t0) return;
+        ctx.strokeStyle = q.side === 'buy' ? GREEN : q.side === 'sell' ? RED : '#ffb648';
+        ctx.beginPath(); ctx.arc(X(Math.min(q.t, G.t1)), Y(q.p), 5.5, 0, 7); ctx.stroke();
+      });
+    }
+  }
+  function fmtN(n) { n = Math.abs(n); return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'K' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(Math.round(n)); }
+  function comma(n) { return Math.round(n).toLocaleString('en-US'); }
+  function hm(t) { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }); }
+  // the Buy/Sell line, the side cards and the order flow message
+  function drawFlow() {
+    var on = range === '1D' && flow && flow.state !== 'unsupported';
+    var msg = '';
+    if (flowLive() && flow) {
+      if (flow.state === 'unsupported' || flow.state === 'nolive' || flow.state === 'error') msg = 'Order flow: ' + flow.msg;
+      else if (flow.state === 'starting') msg = 'Order flow: starting to watch ' + flow.sym + ' trades…';
+      else if (flow.est_until && flow.est_until > flow.day) msg = 'Order flow before ' + local(flow.est_until) + ' (when this page started watching ' + flow.sym + ') is estimated from 1-minute bars. Big trades are listed from then on.';
+      if (msg && flow.state === 'live') $('flowMsg').style.color = DIM; else $('flowMsg').style.color = '';
+    }
+    $('flowMsg').textContent = msg;
+    // Buy/Sell line
+    var pb = $('pressBox');
+    pb.style.display = on && flowOn.press ? 'block' : 'none';
+    if (on && flowOn.press) {
+      var cv = $('pcv'), W = cv.clientWidth, H = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+      cv.width = W * dpr; cv.height = H * dpr;
+      var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+      var pr = flow.press || [], g = G || { t0: flow.day, t1: Date.now(), x0: 8, x1: W - 62 };
+      pr = pr.filter(function (q) { return q[0] >= g.t0 - 60000; });
+      if (pr.length > 1) {
+        var lo = 0, hi = 0; pr.forEach(function (q) { if (q[1] < lo) lo = q[1]; if (q[1] > hi) hi = q[1]; });
+        if (hi === lo) hi = lo + 1;
+        var y0 = 6, y1 = H - 8;
+        function X(t) { return g.x0 + (Math.min(Math.max(t, g.t0), g.t1) - g.t0) / (g.t1 - g.t0 || 1) * (g.x1 - g.x0); }
+        function Y(v) { return y1 - (v - lo) / (hi - lo) * (y1 - y0); }
+        ctx.font = '11px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+        ctx.setLineDash([4, 4]); ctx.strokeStyle = '#164060'; ctx.lineWidth = 1;
+        var zy = Math.round(Y(0)) + 0.5; ctx.beginPath(); ctx.moveTo(g.x0, zy); ctx.lineTo(g.x1, zy); ctx.stroke();
+        ctx.fillStyle = DIM; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('0', g.x1 + 6, zy);
+        ctx.lineWidth = 1.7; ctx.strokeStyle = '#00e5ff';
+        var est = flow.est_until || 0;
+        var cut = 0; while (cut < pr.length && pr[cut][0] <= est + 60000) cut++;      // dashed = estimated part, solid = watched
+        [[pr.slice(0, cut), [4, 3]], [pr.slice(Math.max(0, cut - 1)), []]].forEach(function (seg) {
+          if (seg[0].length < 2) return;
+          ctx.setLineDash(seg[1]); ctx.beginPath();
+          seg[0].forEach(function (q, k) { if (k) ctx.lineTo(X(q[0]), Y(q[1])); else ctx.moveTo(X(q[0]), Y(q[1])); });
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
+        var lastv = pr[pr.length - 1][1];
+        ctx.fillStyle = lastv >= 0 ? GREEN : RED; ctx.fillRect(g.x1 + 2, Y(lastv) - 9, 60, 18);
+        ctx.fillStyle = '#04101f'; ctx.font = 'bold 11px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+        ctx.fillText((lastv >= 0 ? '+' : '-') + fmtN(lastv), g.x1 + 5, Y(lastv));
+      }
+    }
+    // side cards
+    var h = '';
+    if (on && flowOn.book) {
+      var q = flow.quote;
+      if (q) {
+        var tot = (q.bs || 0) + (q.as || 0), pc = tot ? Math.round(q.bs / tot * 100) : 50;
+        h += '<div class="card"><div class="ct">BID / ASK<span class="tag">live · IBKR' + (q.venue === 'overnight' ? ' overnight' : '') + '</span></div><div class="in">' +
+          '<div class="ba"><div><div class="k">BID</div><div class="big" style="color:' + GREEN + '">' + fmtPrice(q.bid) + '</div><div class="s">' + comma(q.bs) + ' sh</div></div>' +
+          '<div style="text-align:right"><div class="k">ASK</div><div class="big" style="color:' + RED + '">' + fmtPrice(q.ask) + '</div><div class="s">' + comma(q.as) + ' sh</div></div></div>' +
+          '<div class="bar"><span style="width:' + pc + '%"></span></div><div class="sm">' + pc + '% of the shares shown are on the buy side · spread ' + (q.ask - q.bid).toFixed(q.ask >= 1 ? 2 : 4) + '</div></div></div>';
+      } else if (flow.state === 'live' || flow.state === 'starting') h += '<div class="card"><div class="ct">BID / ASK</div><div class="in sm">Waiting for IBKR…</div></div>';
+    }
+    if (on && flowOn.prints) {
+      var pp = flow.prints || [];
+      h += '<div class="card"><div class="ct">BIG TRADES<span class="tag">10x average size' + (flow.avg ? ' (' + comma(flow.avg) + ' sh)' : '') + ', $100k+</span></div><div class="in">' +
+        (pp.length ? '<table>' + pp.slice(0, 12).map(function (x) {
+          var c = x.side === 'buy' ? GREEN : x.side === 'sell' ? RED : '#ffb648';
+          return '<tr><td>' + hm(x.t) + '</td><td style="color:' + c + '">' + (x.side === 'mid' ? 'MID' : x.side.toUpperCase()) + '</td><td class="n">' + comma(x.s) + '</td><td class="n">' + fmtPrice(x.p) + '</td></tr>';
+        }).join('') + '</table>' : '<div class="sm">None yet' + (flow.since ? ' since ' + local(flow.since) : '') + '.</div>') + '</div></div>';
+    }
+    if (on && flowOn.press && (flow.buy || flow.sell)) {
+      var bs = flow.buy + flow.sell, top = null;
+      (flow.vap || []).forEach(function (v) { if (!top || v[1] > top[1]) top = v; });
+      h += '<div class="card"><div class="ct">TODAY\'S FLOW<span class="tag">since 8 pm ET</span></div><div class="in">' +
+        '<div class="row"><span>Bought at ask</span><b style="color:' + GREEN + '">' + fmtN(flow.buy) + ' sh ' + Math.round(flow.buy / bs * 100) + '%</b></div>' +
+        '<div class="row"><span>Sold at bid</span><b style="color:' + RED + '">' + fmtN(flow.sell) + ' sh ' + Math.round(flow.sell / bs * 100) + '%</b></div>' +
+        (flow.mid ? '<div class="row"><span>In between</span><b style="color:' + DIM + '">' + fmtN(flow.mid) + ' sh</b></div>' : '') +
+        (top ? '<div class="row"><span>Most traded price</span><b style="color:#ffb648">' + fmtPrice(top[0]) + '</b></div>' : '') + '</div></div>';
+    }
+    $('side').innerHTML = h;
+  }
+  function nice(x) { var e = Math.pow(10, Math.floor(Math.log10(x || 1))), f = x / e; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * e; }
+  function pointer(e) { var r = $('box').getBoundingClientRect(), t = e.touches ? e.touches[0] : e; hover = t.clientX - r.left; draw(); }
+  $('box').addEventListener('mousemove', pointer);
+  $('box').addEventListener('touchstart', pointer, { passive: true });
+  $('box').addEventListener('touchmove', pointer, { passive: true });
+  $('box').addEventListener('mouseleave', function () { hover = null; draw(); });
+  $('box').addEventListener('touchend', function () { setTimeout(function () { hover = null; draw(); }, 2500); });
+  window.addEventListener('resize', function () { draw(); drawFlow(); });
+  window.addEventListener('message', function (e) {      // inside the full board: stop refreshing while the tab is hidden
+    if (e.origin === location.origin && e.data && e.data.type === 'jb-visibility') paneHidden = !e.data.visible;
+    if (e.origin === location.origin && e.data && e.data.type === 'jb-visibility' && e.data.visible && sym) { load(true); if (flowLive()) loadFlow(); }
+  });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && sym && (range === '1D' || range === '5D')) load(true); });
+
+  paintRanges(); paintRecent(); paintFlow();
+  var first = qs.get('sym') || ls('jb_chart_last');
+  if (first) show(first);
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+<script src="tradetools.js"></script>
+<script src="why.js"></script>
+</body>
+</html>

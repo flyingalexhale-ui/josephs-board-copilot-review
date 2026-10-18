@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · World</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- World tab (jb-world): overnight mood meter, world market clock, overnight futures, rates,
+     currencies, Asia / Europe indexes, crypto, and the economic calendar. Data: /api/world
+     (gateway/world.py, free delayed Yahoo prices + Forex Factory + TreasuryDirect). -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#2f7a44;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:20px 4px 8px;}
+  #when{font-size:12px;color:var(--dim);} #when b{color:var(--white);}
+  .top{display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:14px;margin-top:14px;}
+  @media (max-width:720px){ .top{grid-template-columns:1fr;} }
+  .card{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:12px;}
+  #gauge{display:block;width:100%;max-width:300px;margin:0 auto;}
+  #moodLabel{text-align:center;font-size:18px;font-weight:700;margin-top:2px;}
+  #moodWhy{font-size:12px;margin-top:8px;line-height:1.6;}
+  #moodWhy span{color:var(--dim);}
+  .clocks{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+  .clk{border:1px solid var(--line);border-radius:6px;padding:7px 9px;}
+  .clk b{display:block;font-size:12px;} .clk small{color:var(--dim);font-size:11px;}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:var(--dim);vertical-align:1px;}
+  .dot.on{background:var(--green);box-shadow:0 0 6px var(--green);}
+  .pc{font-weight:700;} .up{color:var(--green);} .dn{color:var(--red);}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  th:nth-child(2),th:nth-child(3),th:nth-child(4){width:15%;} th:nth-child(5){width:110px;}
+  @media (max-width:820px){ th:nth-child(2),th:nth-child(3){width:28%;} }
+  td,th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th{color:var(--dim);font-weight:400;font-size:11px;}
+  td:first-child,th:first-child{text-align:left;white-space:normal;}
+  td small{display:block;color:var(--dim);font-size:11px;white-space:normal;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;}
+  @media (max-width:820px){ .grid{grid-template-columns:1fr;} .hide-sm{display:none;} }
+  svg.sp{width:90px;height:22px;vertical-align:middle;}
+  .ev{display:flex;gap:10px;padding:8px 6px;border-bottom:1px solid var(--line);align-items:baseline;}
+  .ev .tm{min-width:118px;color:var(--dim);font-size:12px;}
+  .ev .ti{flex:1;} .ev .ti small{display:block;color:var(--dim);font-size:11px;margin-top:2px;}
+  .ev.past{opacity:.5;}
+  .imp{display:inline-block;font-size:10px;font-weight:700;border-radius:3px;padding:1px 5px;margin-right:6px;vertical-align:1px;}
+  .imp.High{background:#ff3b30;color:#fff;} .imp.Medium{background:var(--amber);color:#04101f;} .imp.Low,.imp.Holiday,.imp.{background:#1b3550;color:var(--dim);}
+  .day{color:var(--cyan);font-size:12px;margin:14px 6px 2px;}
+  #next{font-size:12px;} #next b{color:var(--amber);}
+  .note{font-size:11px;color:var(--dim);margin:6px 4px;line-height:1.5;}
+  .err{color:#ff8a80;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>WORLD</h1><div id="when">Loading…</div></header>
+
+  <div class="top">
+    <div class="card">
+      <svg id="gauge" viewBox="0 0 200 118" aria-label="Overnight mood meter"></svg>
+      <div id="moodLabel">…</div>
+      <div id="moodWhy"></div>
+    </div>
+    <div class="card">
+      <div id="next"></div>
+      <h2 style="margin-top:12px">Market clock</h2>
+      <div class="clocks" id="clocks"></div>
+    </div>
+  </div>
+  <p class="note">The <b>overnight mood</b> mixes moves since the last 4 pm New York close: S&amp;P and Nasdaq futures, Asia,
+    Europe and Bitcoin count up when they rise; the fear index (VIX), the dollar and gold count the other way, because they
+    usually rise when people get nervous. Above +25 = <b class="up">risk-on</b> (buyers in charge), below −25 =
+    <b class="dn">risk-off</b> (sellers in charge), in between = mixed. It's a quick read, not a prediction.</p>
+
+  <div id="tables"></div>
+  <p class="note"><b>Since 4 pm</b> = change since the last US 4 pm close (on weekends, since Friday 4 pm). <b>Day</b> = change
+    vs that market's own previous day. The little line = the last 24 hours. Prices are free and delayed (about 10-20 min for
+    futures and indexes) from Yahoo Finance, refreshed every 5 minutes, so use your IBKR tab for live ES / NQ / YM.</p>
+
+  <h2>Economic calendar · next 7 days (New York time)</h2>
+  <div id="cal"></div>
+  <p class="note"><span class="imp High">HIGH</span> often moves the whole market (jobs report, inflation (CPI), Fed decisions).
+    <span class="imp Medium">MED</span> can move it. <b>Forecast</b> = what economists expect; <b>Prev</b> = last time. A number far
+    from the forecast is what moves prices. Actual numbers show here only when the free feed includes them; otherwise check
+    the News tab right after the release. Treasury auctions (the government borrowing money) can move interest rates and
+    futures, especially 10-, 20- and 30-year ones. Sources: Forex Factory (free), TreasuryDirect, the Federal Reserve.</p>
+</div>
+<script>
+(function(){
+  'use strict';
+  var data = null;
+  // [name, time zone, index, local open, local close] (normal weekday hours; local holidays not known)
+  var CLOCKS = [['Tokyo','Asia/Tokyo','^N225','9:00','15:30'],['Hong Kong','Asia/Hong_Kong','^HSI','9:30','16:00'],
+                ['Shanghai','Asia/Shanghai','000001.SS','9:30','15:00'],['Sydney','Australia/Sydney','^AXJO','10:00','16:00'],
+                ['India','Asia/Kolkata','^BSESN','9:15','15:30'],['London','Europe/London','^FTSE','8:00','16:30'],
+                ['Frankfurt','Europe/Berlin','^GDAXI','9:00','17:30'],['New York','America/New_York',null,'9:30','16:00']];
+  function hmMins(hm){ var p = hm.split(':'); return +p[0] * 60 + +p[1]; }
+  function local(now, tz){ return new Date(new Date(now).toLocaleString('en-US', {timeZone: tz})); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function pc(v){ return v == null ? '<span style="color:var(--dim)">–</span>' : '<span class="pc ' + (v > 0 ? 'up' : v < 0 ? 'dn' : '') + '">' + (v > 0 ? '+' : '') + v.toFixed(2) + '%</span>'; }
+  function num(v){ if(v == null) return '–'; var a = Math.abs(v); return v.toLocaleString('en-US', {maximumFractionDigits: a >= 1000 ? 0 : a >= 10 ? 2 : 4}); }
+  function nyTime(ms, withDay){
+    return new Date(ms).toLocaleString('en-US', withDay ? {timeZone:'America/New_York', weekday:'short', hour:'numeric', minute:'2-digit'}
+                                                        : {timeZone:'America/New_York', hour:'numeric', minute:'2-digit'});
+  }
+  function spark(pts){
+    if(!pts || pts.length < 2) return '';
+    var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts), r = hi - lo || 1;
+    var d = pts.map(function(p, i){ return (i ? 'L' : 'M') + (i * 90 / (pts.length - 1)).toFixed(1) + ' ' + (20 - (p - lo) / r * 18).toFixed(1); }).join(' ');
+    var c = pts[pts.length - 1] >= pts[0] ? '#00ff41' : '#ff3b30';
+    return '<svg class="sp" viewBox="0 0 90 22"><path d="' + d + '" fill="none" stroke="' + c + '" stroke-width="1.4"/></svg>';
+  }
+  function gauge(m){
+    var g = document.getElementById('gauge'), s = m ? m.score : 0;
+    function arc(a0, a1, col){
+      var p = function(a){ var r = (180 - a) * Math.PI / 180; return [100 + 80 * Math.cos(r), 100 - 80 * Math.sin(r)]; };
+      var A = p(a0), B = p(a1);
+      return '<path d="M' + A[0] + ' ' + A[1] + ' A80 80 0 0 1 ' + B[0] + ' ' + B[1] + '" stroke="' + col + '" stroke-width="16" fill="none"/>';
+    }
+    var ang = (s + 100) / 200 * 180, r = (180 - ang) * Math.PI / 180;
+    g.innerHTML = arc(0, 67.5, '#7a1f1a') + arc(67.5, 112.5, '#2a3d52') + arc(112.5, 180, '#145c2a') +
+      '<text x="18" y="116" fill="#6f8aa3" font-size="9">RISK-OFF</text><text x="146" y="116" fill="#6f8aa3" font-size="9">RISK-ON</text>' +
+      (m ? '<line x1="100" y1="100" x2="' + (100 + 70 * Math.cos(r)).toFixed(1) + '" y2="' + (100 - 70 * Math.sin(r)).toFixed(1) + '" stroke="#f2f2f2" stroke-width="3" stroke-linecap="round"/>' : '') +
+      '<circle cx="100" cy="100" r="5" fill="#f2f2f2"/>';
+    var L = document.getElementById('moodLabel');
+    L.innerHTML = m ? 'Overnight mood: <span class="' + (s >= 25 ? 'up' : s <= -25 ? 'dn' : '') + '">' + esc(m.label) + ' ' + (s > 0 ? '+' : '') + s + '</span>' : 'Waiting for prices…';
+    document.getElementById('moodWhy').innerHTML = m ? m.parts.map(function(p){
+      return (p.push > 0 ? '▲ ' : p.push < 0 ? '▼ ' : '• ') + esc(p.name) + ' ' + pc(p.pct) + (p.note.indexOf('other way') > 0 ? ' <span>(counts the other way)</span>' : '');
+    }).join('<br>') : '';
+  }
+  function rowOf(sym){ return (data.rows || []).filter(function(r){ return r.sym === sym; })[0] || {}; }
+  function clocks(){
+    var now = Date.now();
+    document.getElementById('clocks').innerHTML = CLOCKS.map(function(c){
+      var t = new Date(now).toLocaleTimeString('en-US', {timeZone: c[1], hour:'numeric', minute:'2-digit', weekday:'short'});
+      var lt = local(now, c[1]), m = lt.getHours() * 60 + lt.getMinutes(), wd = lt.getDay(), extra = '';
+      var open = wd > 0 && wd < 6 && m >= hmMins(c[3]) && m < hmMins(c[4]);
+      if(c[2]){ var r = rowOf(c[2]); if(r.last != null) extra = ' · ' + pc(r.day); }
+      else extra = wd > 0 && wd < 6 ? (m >= 240 && m < 570 ? ' · pre-market' : m >= 960 && m < 1200 ? ' · after-hours' : m >= 1200 || m < 230 ? ' · overnight' : '') : '';
+      return '<div class="clk"><b><span class="dot ' + (open ? 'on' : '') + '"></span>' + esc(c[0]) + '</b><small>' + esc(t) + (open ? ' · open' : ' · closed') + extra + '</small></div>';
+    }).join('');
+    var next = (data.calendar || []).filter(function(e){ return e.t > now && (e.impact === 'High'); })[0];
+    var el = document.getElementById('next');
+    if(next){
+      var mins = Math.round((next.t - now) / 60000), h = Math.floor(mins / 60), d = Math.floor(h / 24);
+      el.innerHTML = 'Next big event: <b>' + esc(next.title) + '</b> ' + esc(nyTime(next.t, true)) + ' · in ' +
+        (d >= 1 ? d + 'd ' + (h % 24) + 'h' : h >= 1 ? h + 'h ' + (mins % 60) + 'm' : mins + ' min');
+    } else el.textContent = 'No high-impact US events in the next few days.';
+  }
+  function tables(){
+    var html = '';
+    (data.groups || []).forEach(function(g){
+      var rs = data.rows.filter(function(r){ return r.group === g[0]; });
+      html += '<h2>' + esc(g[1]) + '</h2><table><tr><th>Market</th><th>Price</th><th>Since 4 pm</th><th class="hide-sm">Day</th><th class="hide-sm">24 h</th></tr>' +
+        rs.map(function(r){
+          return '<tr><td><span class="dot ' + (r.open ? 'on' : '') + '" title="' + (r.open ? 'trading now' : 'closed') + '"></span>' + esc(r.name) +
+            (r.note ? '<small>' + esc(r.note) + '</small>' : '') + (r.error ? '<small class="err">no data: ' + esc(r.error) + '</small>' : '') + '</td>' +
+            '<td>' + num(r.last) + '</td><td>' + pc(r.since_close) + '</td><td class="hide-sm">' + pc(r.day) + '</td><td class="hide-sm">' + spark(r.spark) + '</td></tr>';
+        }).join('') + '</table>';
+    });
+    document.getElementById('tables').innerHTML = html;
+  }
+  function cal(){
+    var now = Date.now(), last = '', html = '';
+    (data.calendar || []).forEach(function(e){
+      var day = new Date(e.t).toLocaleDateString('en-US', {timeZone:'America/New_York', weekday:'long', month:'short', day:'numeric'});
+      if(day !== last){ html += '<div class="day">' + esc(day) + '</div>'; last = day; }
+      var bits = [];
+      if(e.actual) bits.push('Actual <b>' + esc(e.actual) + '</b>');
+      if(e.forecast) bits.push((e.kind === 'auction' ? 'Size ' : 'Forecast ') + esc(e.forecast));
+      if(e.previous) bits.push('Prev ' + esc(e.previous));
+      var allDay = e.impact === 'Holiday';
+      html += '<div class="ev' + (e.t < now - 3600000 ? ' past' : '') + '"><div class="tm">' + (allDay ? 'all day' : esc(nyTime(e.t))) + '</div>' +
+        '<div class="ti"><span class="imp ' + esc(e.impact) + '">' + esc((e.impact || 'low').slice(0, 4).toUpperCase().replace('MEDI', 'MED')) + '</span>' + esc(e.title) +
+        (bits.length ? '<small>' + bits.join(' · ') + '</small>' : '') + '</div></div>';
+    });
+    if(!html) html = '<p class="note">Nothing yet. The calendar loads within a minute of the gateway starting.</p>';
+    if(data.calendar_errors && data.calendar_errors.length) html += '<p class="note err">Could not load: ' + esc(data.calendar_errors.join('; ')) + '</p>';
+    document.getElementById('cal').innerHTML = html;
+  }
+  function draw(){
+    if(!data) return;
+    document.getElementById('when').innerHTML = (data.quotes_at ? 'Updated <b>' + esc(nyTime(data.quotes_at)) + '</b> NY time' : 'Getting prices… (first load takes a minute or two)') +
+      (data.note ? '<br><span class="err">' + esc(data.note) + '</span>' : '');
+    gauge(data.mood); clocks(); tables(); cal();
+  }
+  function refresh(){
+    fetch('/api/world', {credentials:'same-origin', cache:'no-store'}).then(function(r){
+      if(r.status === 401){ (window.top || window).location.href = '/login?next=/'; throw new Error('login'); }
+      return r.json();
+    }).then(function(d){ data = d; draw(); }).catch(function(){});
+  }
+  refresh();
+  setInterval(function(){ if(!document.hidden) refresh(); }, 60000);
+  setInterval(function(){ if(!document.hidden && data) clocks(); }, 20000);
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="world-plus.js"></script>
+<script src="navbar.js"></script>
+<script src="insight.js"></script>
+</body>
+</html>

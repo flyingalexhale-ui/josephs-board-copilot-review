@@ -1,0 +1,14 @@
+/* Clean light colours sit in --jbt-* variables as hsl() on purpose: looks.js re-colours # and rgb() colours for that look, and leaves variables alone. */
+/* Alex Hale's Board -- page titles (jb-desk): MACRO, NIGHT DESK, WORLD... in a formal engraved font
+   (Cinzel, SIL Open Font License, served from this Mac) with a soft gradient inside the letters:
+   silver on the dark looks, navy on Clean light, dim red at Night. Loaded on every page by looks.js. */
+@font-face{font-family:'JB Title';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/Cinzel-Bold-Latin.woff2) format('woff2')}
+header h1{font-family:'JB Title','Optima','Palatino Linotype',Georgia,serif !important;font-weight:700 !important;
+  letter-spacing:.12em !important;line-height:1.35;padding:2px 0 1px;font-size:24px !important;
+  background-image:linear-gradient(180deg,#ffffff 0%,#e6eef7 38%,#adc1d6 64%,#7f97b2 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#dfe9f5 !important;
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.45));}
+html.jb-look-clean{--jbt-c1:hsl(213,50%,36%);--jbt-c2:hsl(213,66%,22%);--jbt-c3:hsl(213,75%,12%);}
+html.jb-look-clean header h1{background-image:linear-gradient(180deg,var(--jbt-c1) 0%,var(--jbt-c2) 52%,var(--jbt-c3) 100%);filter:none;}
+html.jb-night header h1{background-image:linear-gradient(180deg,#d9776c 0%,#a4382f 60%,#6e1c16 100%);filter:none;}
+@media (max-width:640px){ header h1{font-size:21px !important;letter-spacing:.09em !important;} }

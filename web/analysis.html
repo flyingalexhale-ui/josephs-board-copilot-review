@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · Analysis</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- Analysis tab (jb-analysis): gap scorecard, session split chart, sector heatmap, relative
+     strength vs SPY/QQQ, correlation finder, options max pain + put/call. Data: /api/analysis
+     (gateway/analysis.py). -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#2f7a44;--ah:#ffb648;--on:#b39dff;--pre:#00e5ff;--reg:#7fdc8f;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:26px 4px 8px;scroll-margin-top:50px;}
+  #when{font-size:12px;color:var(--dim);}
+  nav{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:6px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);}
+  nav a,.seg button{font-size:11px;font-weight:700;color:#cfe0ee;background:#0b2238;border:1px solid var(--line-bright);border-radius:4px;padding:5px 9px;text-decoration:none;cursor:pointer;font-family:inherit;}
+  .seg{display:flex;gap:4px;flex-wrap:wrap;margin:0 4px 8px;}
+  .seg button.on{background:#1e5631;border-color:#1e5631;color:#fff;}
+  .card{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:8px 10px;overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;}
+  td,th{padding:6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th{color:var(--dim);font-weight:400;font-size:11px;} td:first-child,th:first-child{text-align:left;font-weight:700;}
+  .up{color:var(--green);} .dn{color:var(--red);} .dim{color:var(--dim);}
+  .note{font-size:11.5px;color:var(--dim);margin:8px 4px;line-height:1.55;}
+  .note b{color:#cfe0ee;}
+  .explain{background:#0b2238;border-left:3px solid var(--amber);border-radius:4px;padding:8px 12px;margin:8px 4px;font-size:12px;line-height:1.55;color:#cfe0ee;}
+  .explain p{margin:4px 0;}
+  .err{color:#ff8a80;}
+  .big{font-weight:700;}
+  .pill{display:inline-block;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:700;}
+  .good{background:#0e3a1c;color:#7fdc8f;} .bad{background:#3a1010;color:#ff8a80;} .mid{background:#2a2a10;color:#ffd866;}
+  /* session split chart */
+  #split{width:100%;display:block;}
+  .key{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin:6px 4px;}
+  .key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;}
+  /* heatmap */
+  .heat{display:flex;flex-wrap:wrap;gap:8px;}
+  .grp{border:1px solid var(--line-bright);border-radius:6px;padding:6px;flex:1 1 220px;}
+  .grp h3{margin:0 0 6px;font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.05em;display:flex;justify-content:space-between;}
+  .cells{display:flex;flex-wrap:wrap;gap:4px;}
+  .cell{border-radius:4px;padding:6px 8px;min-width:64px;flex:1 1 auto;text-align:center;line-height:1.3;color:#fff;}
+  .cell b{display:block;font-size:12px;} .cell span{font-size:11px;}
+  /* correlation matrix */
+  .mx td{text-align:center;font-size:11px;padding:4px 5px;}
+  .mx th{font-size:10px;padding:3px;}
+  .bar{display:inline-block;height:8px;border-radius:2px;background:var(--amber);vertical-align:middle;margin-left:6px;}
+  input[type=text]{background:#000;color:var(--white);border:1px solid var(--line-bright);border-radius:4px;font:inherit;font-size:12px;padding:5px 7px;width:110px;text-transform:uppercase;}
+  .go{font:inherit;font-size:12px;color:var(--white);border:1px solid #1e5631;background:#1e5631;border-radius:4px;padding:5px 10px;font-weight:700;cursor:pointer;}
+  @media (max-width:600px){ td,th{padding:5px 4px;font-size:11.5px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>ANALYSIS</h1><div id="when">Loading…</div></header>
+  <nav>
+    <a href="#gaps">Gaps</a><a href="#sessions">Sessions</a><a href="#heatmap">Heatmap</a>
+    <a href="#strength">Strength</a><a href="#together">Move together</a><a href="#options">Options</a>
+  </nav>
+  <div id="note" class="note err" style="display:none"></div>
+  <div class="seg" style="margin-top:10px"><span class="note" style="margin:4px 4px 0 0">Show:</span>
+    <button data-show="boards" class="on">My boards + holdings</button><button data-show="all">Everything (incl. scanner)</button></div>
+
+  <!-- ===================================================== gap scorecard -->
+  <h2 id="gaps">Gap scorecard</h2>
+  <div class="explain">
+    <p>A <b>gap</b> is when a stock opens at 9:30 am 1% or more away from the day before's 4 pm close (the move you see after-hours, overnight and pre-market).</p>
+    <p><b>Held</b> = it still closed on the gap side of the old close that day. <b>Filled</b> = during the day it came all the way back to the old close. <b>Ran</b> = it closed even further in the gap's direction than it opened.</p>
+    <p><b>Gap today</b> = before 9:30 am, the move so far vs the 4 pm close; after 9:30, the actual opening gap.</p>
+    <p>"Gaps like this" counts past gaps in the same direction and of a similar size (1-2%, 2-4%, 4%+) as today's. The past year comes from Yahoo daily prices; <b>your record</b> is kept by the Mac from its own prices each day at 4:05 pm and grows over time.</p>
+  </div>
+  <div class="card"><table id="gapT"></table></div>
+
+  <!-- ===================================================== session split chart -->
+  <h2 id="sessions">Session split chart</h2>
+  <div class="explain"><p>Where the move since the last 4 pm close happened. One bar per session: green to the right = up, red to the left = down.
+    From the board's own prices (IBKR overnight prices where it has them), so stocks only on the scanner may be blank.</p></div>
+  <div class="key"><span><i style="background:var(--ah)"></i>After-hours 4-8 pm</span><span><i style="background:var(--on)"></i>Overnight 8 pm-4 am</span>
+    <span><i style="background:var(--pre)"></i>Pre-market 4-9:30 am</span><span><i style="background:var(--reg)"></i>Regular 9:30 am-4 pm</span></div>
+  <div class="seg" id="splitSort"><button data-k="total" class="on">Sort by biggest total move</button><button data-k="on">by overnight</button><button data-k="sym">A-Z</button></div>
+  <div class="card"><canvas id="split"></canvas></div>
+
+  <!-- ===================================================== sector heatmap -->
+  <h2 id="heatmap">Sector heatmap</h2>
+  <div class="seg" id="heatSeg"><button data-k="total" class="on">Since 4 pm close</button><button data-k="ah">After-hours</button><button data-k="on">Overnight</button><button data-k="pre">Pre-market</button><button data-k="reg">Regular</button></div>
+  <div class="note">Green = up, red = down; brighter and bigger = a bigger move. The top row is the 11 sector funds (from the board if it has them, else Yahoo, which has no overnight prices). Below, your stocks grouped by sector.</div>
+  <div class="card"><div class="heat" id="funds"></div></div>
+  <div style="height:8px"></div>
+  <div class="heat" id="heat"></div>
+
+  <!-- ===================================================== relative strength -->
+  <h2 id="strength">Relative strength vs SPY and QQQ</h2>
+  <div class="explain">
+    <p><b>Is the stock really moving, or just following the market?</b> SPY is the S&amp;P 500 fund; QQQ is the Nasdaq 100 fund.</p>
+    <p><b>vs SPY</b> = the stock's move minus SPY's move. +2.0 means it did 2 percentage points better than the market. Negative = weaker than the market.</p>
+    <p><b>Beta</b> = how much the stock usually moves when the market moves 1% (last 90 days). Beta 1.5: when SPY goes up 1%, it usually goes up about 1.5%.</p>
+    <p><b>Expected</b> = beta × today's SPY move. <b>Own move</b> = what's left after taking that out: the part of today's move that is about the stock itself (news, earnings...). A big own move is worth a look.</p>
+    <p class="dim">Today = since the last 4 pm close (so it includes after-hours, overnight and pre-market). If SPY or QQQ aren't on a board, their futures (ES, NQ) stand in.</p>
+  </div>
+  <div class="card"><table id="rsT"></table></div>
+
+  <!-- ===================================================== correlation -->
+  <h2 id="together">Which stocks move together</h2>
+  <div class="explain">
+    <p><b>Correlation</b> compares the daily moves of two stocks over the last 60 trading days. <b>1.0</b> = they always move the same way; <b>0</b> = no link; <b>negative</b> = they tend to move opposite ways.</p>
+    <p>0.7 or more = they move together most days. Holding several of those is close to one bigger bet on the same thing; if one falls, the others probably will too.</p>
+  </div>
+  <div class="card" id="pairs"></div>
+  <div class="note">The grid below covers your holdings and your board stocks (up to 20). Brighter orange = more alike.</div>
+  <div class="card"><table class="mx" id="mx"></table></div>
+
+  <!-- ===================================================== options -->
+  <h2 id="options">Options: max pain and put/call</h2>
+  <div class="explain">
+    <p>From Yahoo's free, delayed options data (about 15 minutes late), for the nearest weekly or monthly expiry.</p>
+    <p><b>Max pain</b> = the share price at which, on expiry day, option buyers would collect the least (and option sellers keep the most). Some traders think big option sellers nudge the price toward it near expiry. It's a hint, not a promise, and matters most in the last day or two.</p>
+    <p><b>Put/call ratio</b> = puts ÷ calls. Puts are bets on a fall (or insurance), calls are bets on a rise. Above 1 = more puts: traders are cautious or hedging. Below 0.7 = more calls: traders are upbeat. <b>Open interest</b> = all contracts still open; <b>volume</b> = traded today.</p>
+    <p><b>Call / put walls</b> = the strikes with the most open contracts. A big call wall above the price can act like a ceiling; a big put wall below like a floor.</p>
+  </div>
+  <div style="margin:8px 4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <input type="text" id="optSym" placeholder="Any symbol" maxlength="10"><button class="go" id="optGo">Look up</button><span id="optMsg" class="note" style="margin:0"></span>
+  </div>
+  <div class="card"><table id="optT"></table></div>
+  <p class="note">Free sources only: the board's own prices, Yahoo daily prices and Yahoo delayed options. For information, not advice.</p>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var data = null, show = 'boards', heatK = 'total', splitK = 'total', extraOpt = {};
+  try { show = localStorage.getItem('jb_an_show') || 'boards'; } catch (e) {}
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function pc(v, d){ return v == null ? '<span class="dim">–</span>' : '<span class="' + (v > 0 ? 'up' : v < 0 ? 'dn' : '') + '">' + (v > 0 ? '+' : '') + v.toFixed(d == null ? 2 : d) + '%</span>'; }
+  function pp(v){ return v == null ? '<span class="dim">–</span>' : '<span class="' + (v > 0 ? 'up' : v < 0 ? 'dn' : '') + '">' + (v > 0 ? '+' : '') + v.toFixed(2) + '</span>'; }
+  function of(a, n){ return n ? a + ' of ' + n : '<span class="dim">–</span>'; }
+  function rate(a, n){ if (!n) return ''; var r = a / n; return ' <span class="pill ' + (r >= 0.6 ? 'good' : r <= 0.4 ? 'bad' : 'mid') + '">' + Math.round(r * 100) + '%</span>'; }
+  function money(v){ return v == null ? '–' : '$' + (+v).toLocaleString('en-US', {maximumFractionDigits: v < 10 ? 2 : 1}); }
+
+  function wanted(sym){
+    if (show === 'all' || !data) return true;
+    var w = (data.where || {})[sym] || [];
+    return w.some(function(x){ return x.indexOf('Scanner') !== 0; }) || !w.length;
+  }
+
+  // ------------------------------------------------------------ gaps
+  function gaps(){
+    var rows = data.gaps.filter(function(g){ return wanted(g.sym); });
+    rows.sort(function(a, b){ return Math.abs(b.now || 0) - Math.abs(a.now || 0) || (a.sym < b.sym ? -1 : 1); });
+    var h = '<tr><th>Stock</th><th>Gap today</th><th>Gaps like this: held</th><th>filled</th><th>avg after open</th><th>Past year: up gaps held</th><th>down gaps held</th><th>Your record held</th></tr>';
+    h += rows.map(function(g){
+      var L = g.like, U = g.year.up, D = g.year.down, M = g.mine;
+      return '<tr><td>' + esc(g.sym) + '</td><td class="big">' + pc(g.now) + '</td>' +
+        (L && !g.have_daily ? '<td colspan="3" class="dim">waiting for Yahoo prices</td>' :
+         L && !L.n ? '<td colspan="3" class="dim">no ' + L.dir + ' ' + L.size + ' gaps in the past year</td>' :
+         L ? '<td>' + of(L.held, L.n) + rate(L.held, L.n) + '<div class="dim" style="font-size:10px">' + L.dir + ' ' + L.size + '</div></td><td>' + of(L.filled, L.n) + '</td><td>' + (L.n ? pc(L.avg_after_open) : '–') + '</td>'
+             : '<td colspan="3" class="dim">' + (g.now == null ? 'no price since the close yet' : 'under 1%: no gap') + '</td>') +
+        (g.have_daily ? '<td>' + of(U.held || 0, U.n) + rate(U.held, U.n) + '</td><td>' + of(D.held || 0, D.n) + rate(D.held, D.n) + '</td>' : '<td colspan="2" class="dim">waiting for Yahoo prices</td>') +
+        '<td>' + (M ? of(M.held, M.n) : '<span class="dim">building</span>') + '</td></tr>';
+    }).join('');
+    document.getElementById('gapT').innerHTML = rows.length ? h : '<tr><td class="dim">Waiting for prices.</td></tr>';
+  }
+
+  // ------------------------------------------------------------ session split chart (its own chart)
+  var COL = {ah: '#ffb648', on: '#b39dff', pre: '#00e5ff', reg: '#7fdc8f'};
+  function split(){
+    var rows = data.split.filter(function(r){ return r.s && wanted(r.sym); });
+    rows.sort(function(a, b){
+      if (splitK === 'sym') return a.sym < b.sym ? -1 : 1;
+      return Math.abs(b.s[splitK] || 0) - Math.abs(a.s[splitK] || 0);
+    });
+    var cv = document.getElementById('split'), W = cv.parentNode.clientWidth - 20, rowH = 46, H = Math.max(60, rows.length * rowH + 24), dpr = window.devicePixelRatio || 1;
+    cv.style.height = H + 'px'; cv.width = W * dpr; cv.height = H * dpr;
+    var c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    c.font = '11px "IBM Plex Mono", Menlo, monospace'; c.textBaseline = 'middle';
+    if (!rows.length) { c.fillStyle = '#6f8aa3'; c.fillText('No session prices yet.', 6, 20); return; }
+    var mx = 0.5;
+    rows.forEach(function(r){ ['ah','on','pre','reg'].forEach(function(k){ if (r.s[k] != null) mx = Math.max(mx, Math.abs(r.s[k])); }); });
+    var lab = 78, val = 58, x0 = lab, x1 = W - val, mid = (x0 + x1) / 2, half = (x1 - x0) / 2;
+    c.strokeStyle = '#164060'; c.beginPath(); c.moveTo(mid + .5, 0); c.lineTo(mid + .5, H - 18); c.stroke();
+    c.fillStyle = '#6f8aa3'; c.textAlign = 'center';
+    c.fillText('-' + mx.toFixed(1) + '%', x0 + 18, H - 8); c.fillText('0', mid, H - 8); c.fillText('+' + mx.toFixed(1) + '%', x1 - 18, H - 8);
+    rows.forEach(function(r, i){
+      var y = i * rowH + 4;
+      c.textAlign = 'left'; c.fillStyle = '#f2f2f2'; c.font = 'bold 12px "IBM Plex Mono", Menlo, monospace'; c.fillText(r.sym, 2, y + 12);
+      c.font = '10px "IBM Plex Mono", Menlo, monospace';
+      var t = r.s.total; c.fillStyle = t > 0 ? '#00ff41' : t < 0 ? '#ff3b30' : '#6f8aa3';
+      c.fillText(t == null ? '' : (t > 0 ? '+' : '') + t.toFixed(2) + '%', 2, y + 28);
+      ['ah','on','pre','reg'].forEach(function(k, j){
+        var v = r.s[k], by = y + j * 9 + 2;
+        if (v == null) { c.fillStyle = '#0d2740'; c.fillRect(mid - 1, by, 2, 7); return; }
+        var w = Math.max(1, Math.abs(v) / mx * half);
+        c.fillStyle = COL[k]; c.fillRect(v >= 0 ? mid : mid - w, by, w, 7);
+        c.fillStyle = v > 0 ? '#00ff41' : v < 0 ? '#ff3b30' : '#6f8aa3'; c.textAlign = 'left';
+        c.fillText((v > 0 ? '+' : '') + v.toFixed(2), x1 + 6, by + 4);
+      });
+      c.strokeStyle = '#0d2740'; c.beginPath(); c.moveTo(0, y + rowH - 4.5); c.lineTo(W, y + rowH - 4.5); c.stroke();
+    });
+  }
+
+  // ------------------------------------------------------------ heatmap
+  function shade(v){
+    if (v == null) return '#0d2740';
+    var a = Math.min(1, Math.abs(v) / 3);
+    return v >= 0 ? 'rgba(0,' + Math.round(90 + 120 * a) + ',' + Math.round(40 + 20 * a) + ',' + (0.35 + 0.65 * a) + ')'
+                  : 'rgba(' + Math.round(110 + 140 * a) + ',30,30,' + (0.35 + 0.65 * a) + ')';
+  }
+  function cell(sym, v, sub){
+    var a = v == null ? 0 : Math.min(1, Math.abs(v) / 3), fs = 11 + Math.round(a * 5);
+    return '<div class="cell" style="background:' + shade(v) + ';flex-grow:' + (1 + a * 3).toFixed(2) + ';padding:' + (5 + a * 6) + 'px 8px">' +
+      '<b style="font-size:' + fs + 'px">' + esc(sym) + '</b><span>' + (v == null ? '–' : (v > 0 ? '+' : '') + v.toFixed(2) + '%') + '</span>' + (sub ? '<span class="dim" style="display:block;font-size:9px">' + esc(sub) + '</span>' : '') + '</div>';
+  }
+  function avg(a){ var x = a.filter(function(v){ return v != null; }); return x.length ? x.reduce(function(s, v){ return s + v; }, 0) / x.length : null; }
+  function heat(){
+    var H = data.heat;
+    document.getElementById('funds').innerHTML = '<div class="cells" style="width:100%">' + H.funds.map(function(f){
+      return cell(f.sym, f.s ? f.s[heatK] : null, f.sector); }).join('') + '</div>';
+    var groups = {};
+    H.tiles.filter(function(t){ return wanted(t.sym); }).forEach(function(t){ (groups[t.sector] = groups[t.sector] || []).push(t); });
+    var names = Object.keys(groups).sort(function(a, b){ return groups[b].length - groups[a].length; });
+    document.getElementById('heat').innerHTML = names.map(function(n){
+      var g = groups[n].sort(function(a, b){ return Math.abs((b.s || {})[heatK] || 0) - Math.abs((a.s || {})[heatK] || 0); });
+      var m = avg(g.map(function(t){ return t.s ? t.s[heatK] : null; }));
+      return '<div class="grp"><h3><span>' + esc(n) + '</span>' + pc(m) + '</h3><div class="cells">' +
+        g.map(function(t){ return cell(t.sym, t.s ? t.s[heatK] : null); }).join('') + '</div></div>';
+    }).join('') || '<div class="note">Waiting for prices.</div>';
+  }
+
+  // ------------------------------------------------------------ relative strength
+  function rs(){
+    var R = data.rs, b = R.bench;
+    var h = '<tr><th>Stock</th><th>Today</th><th>vs SPY</th><th>vs QQQ</th><th>Beta</th><th>Expected</th><th>Own move</th><th>5 days vs SPY</th><th>1 month vs SPY</th></tr>';
+    h += '<tr class="dim"><td>SPY' + (b.SPY.via ? ' (' + esc(b.SPY.via) + ')' : '') + '</td><td>' + pc(b.SPY.now) + '</td><td colspan="5"></td><td>' + pc(b.SPY.d5) + '</td><td>' + pc(b.SPY.d21) + '</td></tr>';
+    h += '<tr class="dim"><td>QQQ' + (b.QQQ.via ? ' (' + esc(b.QQQ.via) + ')' : '') + '</td><td>' + pc(b.QQQ.now) + '</td><td colspan="5"></td><td>' + pc(b.QQQ.d5) + '</td><td>' + pc(b.QQQ.d21) + '</td></tr>';
+    var rows = R.rows.filter(function(r){ return wanted(r.sym); });
+    rows.sort(function(a, b){ return Math.abs(b.own || 0) - Math.abs(a.own || 0); });
+    h += rows.map(function(r){
+      return '<tr><td>' + esc(r.sym) + '</td><td>' + pc(r.now) + '</td><td>' + pp(r.vs_SPY_now) + '</td><td>' + pp(r.vs_QQQ_now) + '</td><td>' +
+        (r.beta == null ? '–' : r.beta.toFixed(2)) + '</td><td>' + pc(r.expected) + '</td><td class="big">' + pc(r.own) + '</td><td>' + pp(r.vs_SPY_d5) + '</td><td>' + pp(r.vs_SPY_d21) + '</td></tr>';
+    }).join('');
+    document.getElementById('rsT').innerHTML = h;
+  }
+
+  // ------------------------------------------------------------ correlation
+  function corr(){
+    var C = data.corr, held = C.held || [];
+    var ok = function(p){ return wanted(p.a) && wanted(p.b); };
+    var tog = C.together.filter(ok);
+    var h = '<table><tr><th>These move together</th><th>Correlation</th><th></th></tr>';
+    h += tog.length ? tog.map(function(p){
+      var both = held.indexOf(p.a) >= 0 && held.indexOf(p.b) >= 0;
+      return '<tr><td>' + esc(p.a) + ' + ' + esc(p.b) + '</td><td>' + p.c.toFixed(2) + '<span class="bar" style="width:' + Math.round(p.c * 60) + 'px"></span></td><td>' +
+        (both ? '<span class="pill bad">you hold both</span>' : '') + '</td></tr>'; }).join('')
+      : '<tr><td colspan="3" class="dim">No pairs at 0.7 or above' + (C.syms.length < 2 ? ' yet (needs daily prices from Yahoo)' : '') + '.</td></tr>';
+    var opp = C.opposite.filter(ok);
+    if (opp.length) h += '<tr><th>These tend to move opposite ways</th><th></th><th></th></tr>' + opp.map(function(p){
+      return '<tr><td>' + esc(p.a) + ' + ' + esc(p.b) + '</td><td>' + p.c.toFixed(2) + '</td><td></td></tr>'; }).join('');
+    document.getElementById('pairs').innerHTML = h + '</table>';
+    var list = C.syms.filter(function(s){ return held.indexOf(s) >= 0 || ((data.where || {})[s] || []).some(function(w){ return w.indexOf('board') >= 0; }); }).slice(0, 20);
+    var m = function(a, b){ return a === b ? 1 : C.m[a + '|' + b] != null ? C.m[a + '|' + b] : C.m[b + '|' + a]; };
+    var t = '<tr><th></th>' + list.map(function(s){ return '<th>' + esc(s) + '</th>'; }).join('') + '</tr>';
+    t += list.map(function(a){
+      return '<tr><th style="text-align:left">' + esc(a) + (held.indexOf(a) >= 0 ? ' •' : '') + '</th>' + list.map(function(b){
+        var v = m(a, b);
+        if (v == null) return '<td class="dim">–</td>';
+        var bg = v >= 0 ? 'rgba(255,182,72,' + (v * 0.85).toFixed(2) + ')' : 'rgba(79,195,255,' + (-v * 0.85).toFixed(2) + ')';
+        return '<td style="background:' + (a === b ? '#0d2740' : bg) + '">' + (a === b ? '' : v.toFixed(2)) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    document.getElementById('mx').innerHTML = list.length > 1 ? t + '<tr><td colspan="' + (list.length + 1) + '" class="dim" style="text-align:left">• = you hold it. Blue = they tend to move opposite ways.</td></tr>' : '<tr><td class="dim">Not enough stocks with daily prices yet.</td></tr>';
+  }
+
+  // ------------------------------------------------------------ options
+  function optRow(o){
+    if (o.error) return '<tr><td>' + esc(o.sym) + '</td><td colspan="8" class="err" style="text-align:left">' + esc(o.error) + '</td></tr>';
+    if (o.none || o.max_pain == null) return '<tr><td>' + esc(o.sym) + '</td><td colspan="8" class="dim" style="text-align:left">No options listed on Yahoo.</td></tr>';
+    var mood = o.pc_oi == null ? '' : o.pc_oi > 1 ? '<span class="pill bad">cautious</span>' : o.pc_oi < 0.7 ? '<span class="pill good">upbeat</span>' : '<span class="pill mid">neutral</span>';
+    var walls = function(a){ return (a || []).map(function(w){ return money(w.strike) + ' <span class="dim">(' + w.oi.toLocaleString() + ')</span>'; }).join('<br>'); };
+    return '<tr><td>' + esc(o.sym) + '</td><td>' + esc(o.expiry) + '</td><td>' + money(o.price) + '</td><td class="big">' + money(o.max_pain) + '</td><td>' + pc(o.vs_price, 1) +
+      '</td><td>' + (o.pc_oi == null ? '–' : o.pc_oi.toFixed(2)) + ' ' + mood + '</td><td>' + (o.pc_vol == null ? '–' : o.pc_vol.toFixed(2)) + '</td><td>' + walls(o.call_walls) + '</td><td>' + walls(o.put_walls) + '</td></tr>';
+  }
+  function opts(){
+    var all = {}; Object.keys(data.options || {}).forEach(function(s){ all[s] = data.options[s]; });
+    Object.keys(extraOpt).forEach(function(s){ all[s] = extraOpt[s]; });
+    var syms = Object.keys(all).filter(function(s){ return extraOpt[s] || wanted(s); }).sort(function(a, b){ return (extraOpt[b] ? 1 : 0) - (extraOpt[a] ? 1 : 0) || (a < b ? -1 : 1); });
+    var h = '<tr><th>Stock</th><th>Expiry</th><th>Price</th><th>Max pain</th><th>vs price</th><th>Put/call (open)</th><th>Put/call (today)</th><th>Call walls</th><th>Put walls</th></tr>';
+    document.getElementById('optT').innerHTML = h + (syms.length ? syms.map(function(s){ return optRow(all[s]); }).join('') : '<tr><td colspan="9" class="dim">Being fetched from Yahoo, a few seconds per stock.</td></tr>');
+  }
+  document.getElementById('optGo').onclick = function(){
+    var s = document.getElementById('optSym').value.trim().toUpperCase(), msg = document.getElementById('optMsg');
+    if (!s) return;
+    msg.textContent = 'Asking Yahoo…';
+    fetch('/api/analysis/options?sym=' + encodeURIComponent(s), {credentials: 'same-origin'}).then(function(r){ return r.json(); }).then(function(o){
+      msg.textContent = ''; o.sym = o.sym || s; extraOpt[o.sym] = o; opts();
+    }).catch(function(){ msg.textContent = 'Could not reach the Mac.'; });
+  };
+  document.getElementById('optSym').addEventListener('keydown', function(e){ if (e.key === 'Enter') document.getElementById('optGo').click(); });
+
+  // ------------------------------------------------------------ wiring
+  function paint(){
+    if (!data) return;
+    var n = document.getElementById('note'), errs = Object.keys(data.errors || {}).length;
+    n.style.display = data.note ? '' : 'none'; n.textContent = data.note || '';
+    document.getElementById('when').textContent = 'Updated ' + new Date(data.at).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) +
+      (data.busy ? ' · fetching ' + data.busy.split(' ').pop() : '') + (errs ? ' · ' + errs + ' not fetched yet' : '');
+    [gaps, split, heat, rs, corr, opts].forEach(function(f){ try { f(); } catch (e) { console.error(e); } });
+  }
+  function load(){
+    if (document.hidden && data) return;
+    fetch('/api/analysis', {credentials: 'same-origin', cache: 'no-store'}).then(function(r){
+      if (r.status === 401) { (window.top || window).location.href = '/login?next=/'; throw new Error('login'); }
+      return r.json();
+    }).then(function(d){ data = d; paint(); }).catch(function(){ document.getElementById('when').textContent = 'Could not reach the Mac.'; });
+  }
+  function seg(id, set){
+    [].forEach.call(document.querySelectorAll(id + ' button'), function(b){
+      b.onclick = function(){ [].forEach.call(document.querySelectorAll(id + ' button'), function(x){ x.classList.toggle('on', x === b); }); set(b.dataset.k); paint(); };
+    });
+  }
+  seg('#heatSeg', function(k){ heatK = k; });
+  seg('#splitSort', function(k){ splitK = k; });
+  [].forEach.call(document.querySelectorAll('[data-show]'), function(b){
+    b.classList.toggle('on', b.dataset.show === show);
+    b.onclick = function(){ show = b.dataset.show; try { localStorage.setItem('jb_an_show', show); } catch (e) {}
+      [].forEach.call(document.querySelectorAll('[data-show]'), function(x){ x.classList.toggle('on', x === b); }); paint(); };
+  });
+  window.addEventListener('resize', function(){ if (data) split(); });
+  load(); setInterval(load, 60000);
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · Night desk</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<script src="nd-only.js"></script>
+<!-- Night desk tab (jb-night and later installs): everything for after-hours, overnight and
+     pre-market trading added from the October 2026 ideas list. This page is only a frame: each
+     install adds its own section file (nd-night.js, nd-alerts2.js, nd-mdata.js, nd-earn.js,
+     nd-ticket.js), loaded only when that part is installed on the Mac. Data: /api/plus/... -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#5b4bb5;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#b39dff;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:22px 4px 8px;}
+  #when{font-size:12px;color:var(--dim);}
+  #jump{display:flex;flex-wrap:wrap;gap:6px;margin:10px 4px 0;}
+  #jump a{font-size:11px;color:#b39dff;text-decoration:none;border:1px solid #2e2560;border-radius:12px;padding:3px 9px;}
+  /* Night desk tabs (jb-ndtabs): the sections sit in tabs instead of one long page */
+  #jump{display:none;}
+  #ndtabs{display:flex;flex-wrap:wrap;gap:4px;margin:14px 4px 0;border-bottom:1px solid var(--line-bright);}
+  #ndtabs button{background:transparent;border:1px solid transparent;border-bottom:0;border-radius:6px 6px 0 0;color:var(--dim);
+    font-weight:600;font-size:12.5px;padding:8px 14px;margin-bottom:-1px;}
+  #ndtabs button:hover{color:var(--white);}
+  #ndtabs button.on{background:var(--panel);border-color:var(--line-bright);color:#d6ccff;}
+  .ndpane{display:none;} .ndpane.on{display:block;}
+  @media (max-width:600px){ #ndtabs button{padding:8px 10px;font-size:12px;} }
+  .card{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:6px 12px;}
+  .set{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .set:last-child{border-bottom:0;}
+  .set input[type=checkbox]{width:18px;height:18px;margin-top:1px;accent-color:#5b4bb5;flex-shrink:0;}
+  .set .t{flex:1;} .set .t small{display:block;color:var(--dim);font-size:11px;margin-top:2px;line-height:1.45;}
+  input[type=text],input[type=number],select,textarea{background:#000;color:var(--white);border:1px solid var(--line-bright);border-radius:4px;font:inherit;font-size:12px;padding:5px 6px;}
+  textarea{width:100%;min-height:80px;line-height:1.45;}
+  button{font:inherit;font-size:12px;color:var(--white);border:1px solid #3d3191;background:#3d3191;border-radius:4px;padding:6px 10px;font-weight:700;cursor:pointer;}
+  button.ghost{background:#0b2238;border-color:#164060;}
+  button.red{background:#7a1c1c;border-color:#a12a2a;}
+  .ev{display:flex;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line);align-items:baseline;}
+  .ev .tm{min-width:92px;color:var(--dim);font-size:11px;}
+  .ev .k{min-width:110px;font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.4px;}
+  .ev .tx{flex:1;line-height:1.45;} .ev a{color:#7fd6ff;}
+  .tbl{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;}
+  td,th{padding:6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th{color:var(--dim);font-weight:400;font-size:11px;} td:first-child,th:first-child{text-align:left;}
+  .up{color:var(--green);} .dn{color:var(--red);} .warn{color:var(--amber);} .hot{color:#d6a8ff;font-weight:700;}
+  .note{font-size:11px;color:var(--dim);margin:6px 4px;line-height:1.5;}
+  .err{color:#ff8a80;}
+  .msg{font-size:12px;color:var(--dim);margin-left:8px;}
+  .chip{display:inline-block;border-radius:3px;padding:1px 6px;font-size:10.5px;font-weight:700;border:1px solid;margin:1px 2px;}
+  .c-g{background:#062a14;color:#5dff8f;border-color:#145c2c;} .c-a{background:#2e2400;color:#ffc400;border-color:#7a5c00;}
+  .c-r{background:#3a0b0b;color:#ff8a80;border-color:#7a1c1c;} .c-b{background:#0e2a3a;color:#7fd6ff;border-color:#1e5a78;}
+  .c-d{background:#14202e;color:#9fb3c8;border-color:#2a3d52;} .c-p{background:#22163f;color:#d6a8ff;border-color:#4b3a8a;}
+  .bar{height:8px;background:#0b2238;border-radius:4px;overflow:hidden;} .bar i{display:block;height:100%;background:#7c6cf0;}
+  .row2{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 4px;}
+  .big{font-size:22px;font-weight:700;}
+  @media (max-width:600px){ .ev{flex-wrap:wrap;} .ev .tm,.ev .k{min-width:0;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>NIGHT DESK</h1><div id="when">Loading…</div></header>
+  <p class="note">Everything for trading outside regular hours in one place: after-hours, overnight and pre-market. Alerts go to your
+    phone through the ntfy app, like your other alerts. Each part below is explained in the <b>? Legend</b> and in the <a href="Night-Desk-Guide.pdf" target="_blank" rel="noopener" style="color:#b39dff">Night desk guide (PDF)</a>.</p>
+  <div id="jump"></div>
+  <div id="ndtabs"></div>
+  <div id="secs"></div>
+  <p class="note" id="foot"></p>
+</div>
+<script>
+(function () {
+  'use strict';
+  var ND = window.ND = {};
+  ND.esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  ND.pc = function (v, d) { return v == null ? '–' : '<span class="' + (v > 0 ? 'up' : v < 0 ? 'dn' : '') + '">' + (v > 0 ? '+' : '') + Number(v).toFixed(d == null ? 2 : d) + '%</span>'; };
+  ND.ago = function (ms) { var m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+  var TF = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  ND.time = function (ms) { return ms ? TF.format(new Date(ms)) : ''; };
+  ND.money = function (v) { return v == null ? '–' : (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  ND.api = function (p) {
+    return fetch('/api/plus/' + p, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      if (r.status === 401) { top.location.href = '/login?next=/'; throw new Error('login'); }
+      return r.json();
+    });
+  };
+  ND.post = function (p, data) {
+    return fetch('/api/plus/' + p, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
+  };
+  // tabs (jb-ndtabs): which tab each section goes in, in the order shown; new sections fall back by their prefix
+  var TABS = [
+    ['tonight', 'Tonight', ['e-plan', 'a2-bed', 'pick', 'md-gap', 'md-twins', 'e-nd', 'night-venue', 'night-busy', 'night-exch']],
+    ['trade', 'Trade', ['t-ticket', 'o-guard', 'o-sched', 'o-switch', 'o-fills', 'e-limit', 'e-fills']],
+    ['edge', 'ETF Edge', ['x-fair', 'x-inside', 'x-reb', 'x-decay', 'x-drift', 'x-cal', 'x-risk', 'x-gamma', 'x-macro', 'x-sw']],
+    ['news', 'News & Feeds', ['f-top', 'ww-unexp', 'ww-feed', 'f-crowd', 'f-odds', 'f-policy', 'f-tape', 'ww-src', 'f-sw']],
+    ['data', 'Market Data', ['a2-halts', 'md-opts', 'md-short', 'md-rate', 'e-earn', 'e-stress', 'a2-830', 'a2-odds',
+                             'bm-own', 'bm-ins', 'bm-blocks', 'bm-dark', 'bm-pol', 'md-switches', 'e-switches', 'md-log']],
+    ['alerts', 'Alerts', ['t-alerts', 'a2-switches', 'night-alerts', 'a2-combo', 'night-log', 'a2-log']],
+    ['tools', 'Tools', ['t-score', 't-notes', 't-reports', 't-widget', 't-golive']],
+    ['mac', 'Mac & Safety', ['g-checks', 'a2-heart', 'ibauto', 'g-net', 'g-backup', 'g-sw']],
+    ['more', 'More', []]];
+  var PREFIX = [['night-', 'tonight'], ['o-', 'trade'], ['x-', 'edge'], ['f-', 'news'], ['ww-', 'news'], ['bm-', 'data'], ['md-', 'data'],
+                ['e-', 'data'], ['a2-', 'alerts'], ['t-', 'tools'], ['g-', 'mac']];
+  var RANK = {}, TABOF = {}, n = 0;
+  TABS.forEach(function (t) { t[2].forEach(function (id) { RANK[id] = n++; TABOF[id] = t[0]; }); });
+  function tabOf(id) {
+    if (TABOF[id]) return TABOF[id];
+    for (var i = 0; i < PREFIX.length; i++) if (id.indexOf(PREFIX[i][0]) === 0) return PREFIX[i][1];
+    return 'more';
+  }
+  var panes = {}, btns = {}, cur = null, picked = false, saved = null;
+  try { saved = localStorage.getItem('jb_nd_tab'); } catch (e) {}
+  ND.tab = function (t, byUser) {
+    if (!panes[t]) return;
+    cur = t; if (byUser) { picked = true; try { localStorage.setItem('jb_nd_tab', t); } catch (e) {} }
+    Object.keys(panes).forEach(function (k) { panes[k].classList.toggle('on', k === t); btns[k].classList.toggle('on', k === t); });
+    var cv = panes[t].querySelector('#ndCv'), go = panes[t].querySelector('#ndGo');     // a chart drawn while hidden has no size
+    if (cv && go && cv.width < 10) go.click();
+  };
+  ND.pane = function (id) {
+    var t = tabOf(id);
+    if (!panes[t]) {
+      var def = TABS.filter(function (x) { return x[0] === t; })[0];
+      var p = document.createElement('div'); p.className = 'ndpane';
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = def[1];
+      b.onclick = function () { ND.tab(t, true); };
+      var after = TABS.map(function (x) { return x[0]; }), i = after.indexOf(t), next = null;
+      for (var j = i + 1; j < after.length && !next; j++) if (panes[after[j]]) next = after[j];
+      document.getElementById('ndtabs').insertBefore(b, next ? btns[next] : null);
+      document.getElementById('secs').insertBefore(p, next ? panes[next] : null);
+      panes[t] = p; btns[t] = b;
+      if (!cur || (!picked && (t === saved || (cur !== saved && after.indexOf(t) < after.indexOf(cur))))) ND.tab(t);
+    }
+    return panes[t];
+  };
+  function place(pane, id, h, el) {          // keep each tab's sections in the order above
+    var r = id in RANK ? RANK[id] : 1e6, kids = pane.querySelectorAll('h2[data-rank]'), before = null;
+    for (var i = 0; i < kids.length && !before; i++) if (+kids[i].dataset.rank > r) before = kids[i];
+    h.dataset.rank = r; pane.insertBefore(h, before); pane.insertBefore(el, before);
+    if (location.hash === '#h-' + id) { ND.tab(tabOf(id)); setTimeout(function () { h.scrollIntoView(); }, 300); }
+  }
+  // a section: ND.section(id, title) -> the element to fill
+  ND.section = function (id, title) {
+    var el = document.getElementById('s-' + id);
+    if (el) return el;
+    var h = document.createElement('h2'); h.id = 'h-' + id; h.textContent = title;
+    el = document.createElement('div'); el.id = 's-' + id;
+    place(ND.pane(id), id, h, el);      // in its tab (jb-ndtabs)
+    var a = document.createElement('a'); a.href = '#h-' + id; a.textContent = title.replace(/\s*\(.*\)$/, '');
+    document.getElementById('jump').appendChild(a);
+    return el;
+  };
+  ND.switches = function (el, list, values, onSave) {   // list: [[key, label, help], ...]
+    el.innerHTML = '<div class="card">' + list.map(function (s) {
+      return '<label class="set"><input type="checkbox" data-k="' + s[0] + '"' + (values[s[0]] ? ' checked' : '') + '><span class="t">' + s[1] + '<small>' + s[2] + '</small></span></label>';
+    }).join('') + '</div><div class="row2"><button>Save</button><span class="msg"></span></div>';
+    var msg = el.querySelector('.msg');
+    el.querySelector('button').onclick = function () {
+      var out = {}; [].forEach.call(el.querySelectorAll('input[data-k]'), function (i) { out[i.dataset.k] = i.checked; });
+      msg.textContent = 'Saving…';
+      onSave(out).then(function () { msg.textContent = 'Saved.'; }).catch(function (e) { msg.textContent = 'Could not save: ' + e.message; });
+    };
+  };
+  ND.log = function (rows) {
+    return rows && rows.length ? rows.map(function (r) {
+      return '<div class="ev"><span class="tm">' + ND.esc(ND.time(r.at)) + '</span><span class="k">' + ND.esc(r.kind) + '</span><span class="tx">' + ND.esc(r.text) + '</span></div>';
+    }).join('') : '<p class="note">Nothing yet.</p>';
+  };
+  // load each installed part's section file, in a fixed order
+  var ORDER = ['night', 'alerts2', 'mdata', 'pick', 'bigmoney', 'webwatch', 'earn', 'ticket', 'ibauto', 'orders', 'edge', 'feeds', 'guardian', 'tools'];
+  ND.api('').then(function (d) {
+    var mods = d.modules || [];
+    var list = ORDER.filter(function (m) { return mods.indexOf(m) >= 0; });
+    document.getElementById('when').textContent = list.length ? 'New York time ' + ND.time(Date.now()) : 'Nothing installed yet';
+    var errs = d.errors || {};
+    document.getElementById('foot').innerHTML = Object.keys(errs).map(function (k) { return '<span class="err">' + ND.esc(k + ': ' + errs[k]) + '</span>'; }).join('<br>');
+    (function next(i) {
+      if (i >= list.length) return;
+      var s = document.createElement('script'); s.src = 'nd-' + list[i] + '.js';
+      s.onload = s.onerror = function () { next(i + 1); };
+      document.body.appendChild(s);
+    })(0);
+  }).catch(function () { document.getElementById('when').textContent = 'Could not reach the Mac.'; });
+  setInterval(function () { var w = document.getElementById('when'); if (/New York/.test(w.textContent)) w.textContent = 'New York time ' + ND.time(Date.now()); }, 30000);
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+<script src="phone-ease.js"></script>
+<script src="nd-recap.js"></script>
+</body>
+</html>

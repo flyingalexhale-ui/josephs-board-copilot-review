@@ -1,0 +1,132 @@
+A0 [CRITICAL] A0 CRITICAL: live algo can send a real order during its start-up checks and leave it working when start-up refuses. paper_trader.py run() 467-530: sub
+A11+B17 [CRITICAL] A11 CRITICAL: hand sale in IBKR app -> algo can sell again (short); backup stop stays at IBKR for shares not held. _exit/_live (core_trader 503-635) n
+A2+B2+C7 [CRITICAL] A2 CRITICAL: "unconfirmed" order (disconnect / nightly Gateway restart mid-order) silently disables stop-loss, trailing, Stop button and backup stop; 
+C1 [CRITICAL] C1 CRITICAL ticket/phone ticket/scheduled sell leaves board's "Place at IBKR" GTC jb-safety-stop working -> later dip sells shares not held -> short. 
+A1+B18 [HIGH] A1 HIGH: in safe mode a stop-loss hit cancels the backup stop then the sell is blocked by safe mode, and step 4 won't re-place it -> no protection. _e
+A10+B20+C9 [HIGH] A10 HIGH: Go Live doesn't check live sessions vs strategy needs. overnight_gap.yaml live_sessions: [] -> live = regular only, never makes 7:30 pm buy;
+A3+B9 [HIGH] A3 HIGH: 3 rejections -> halted, no push (failed() 636-648; halted blocks opens only at 578). Same at speed-limit halt. CONFIRMED. Fix: push.
+B10 [HIGH] B10 outside regular hours stop-loss exits don't fill on a falling price in paper/backtest: 0.1% cost in fill test vs 0.05% limit offset (options.py 36
+B16+C8 [HIGH] B16 Stop and daily-loss pause send nothing outside live sessions, retry silently every 30 s, while board pushes "stopped and its position closed" (gat
+B6 [HIGH] B6 backup stop whose send timed out but reached Webull is untracked (_bs_unsure, paper_trader 369 / 346); exit within 5 min doesn't cancel it -> GTC S
+C2 [HIGH] C2 HIGH ticket no-short check ignores already-working sells (ticket.py:401 held < qty); two GTC sells + scheduled sell all pass -> -200. recent_same (
+C3 [HIGH] C3 HIGH SELL ALL sells full position on top of an old sell it couldn't cancel within 10 s (killswitch 282-294; Webull :604); headline "closed 1 of 1";
+C4 [HIGH] C4 HIGH board stop on a symbol with no live board price (not on a board, or Webull-only overnight) never fires/never warns: add_guard validates with a
+C5 [HIGH] C5 HIGH Flip buys twice when first buy's cancel unconfirmed (orders.py 518-543 never checks `still`; step 2 qty recomputed whole); compare sell_now 27
+C6 [HIGH] C6 HIGH Go Live stops with no push on a clean macOS restart/shutdown: run-service.sh 97-107 trap removes LIVE_RUNNING, writes how=shutdown, no LIVE_EX
+D1 [HIGH] ### D1 HIGH: Restarting a live algo sells its open hedge (and buys it back if live hedging is still on)
+D2 [HIGH] ### D2 HIGH (latent while one MNQ is above the $25k order cap): IBKR futures hedge doubles itself when the front month rolls
+D9 [HIGH] ### D9 HIGH (logic): Auto-Hedge at its defaults turns the algo's trade into a guaranteed small loss
+E1+F3 [HIGH] E1 board stops/guards/price alerts/daily loss/rules use IBKR 15-min delayed price as live for Network A stocks and drop Webull live price: ibkr_bridge
+E2 [HIGH] E2 missed Sunday 5 pm Approve -> IBKR down through 6 pm futures and overnight; IBC re-prompts ~every 3 min (~140 by midnight; ib-autologin.sh 94 Relog
+E3 [HIGH] E3 Mac asleep/off 5:00-5:30 pm Sunday -> weekly login skipped, no catch-up (ibauto 71), 2FA then lands at 11:50 pm restart; overnight + premarket lost
+E4 [HIGH] E4 after IBKR 1101 (data lost) the scanner IBKR feed never resubscribes, still shows connected; dark overnight (Webull has no overnight); System check
+E5 [HIGH] E5 after power cut / macOS update restart the board doesn't come back without macOS automatic login (per-user LaunchAgents start at GUI login; FileVau
+F1 [HIGH] F1 HIGH "just jumped in the last 15 minutes" fires after a price gap (signals.py 268-277: price_at returns last price before gap; guard only checks re
+G-HIGH-1+G-HIGH-3 [HIGH] G-HIGH-1 login rate limit bypassed by rotating X-Forwarded-For behind Funnel (peer is loopback so client_ip trusts last XFF, gateway.py ~115-118; logi
+G-HIGH-2 [HIGH] G-HIGH-2 unauthenticated /api/widget?key=wrong does time.sleep(1) (tools.py:144) inside shared default executor (gateway.py:201, run_in_executor(None)
+A4+B19 [MEDIUM] A4 MEDIUM: live buy >10,000 shares blocked every bar (guards.py:62) instead of clamped; paper opens full. CONFIRMED. Fix: clamp to max_order_quantity 
+A5+B8 [MEDIUM] A5 MEDIUM: sizing from made-up $100k record (paper_trader 544 --starting-cash default, never passed by jb/run-service.sh); core 459 sizes from portfol
+A6 [MEDIUM] A6 MEDIUM: backup stop filled during disconnect read back as Filled 0 shares (ib_async completedOrder OrderStatus filled=0) -> _bs_status (paper_trade
+B1 [MEDIUM] B1 1-share short preview never runs: live_broker 181 new_orders= vs real preview_order(account_id, preview_orders); TypeError -> "could not be made" -
+B11 [MEDIUM] B11 sma_crossover_tqqq.yaml has no trading: section -> 8% stop / 20% TP only checked 9:30-4:00 though it holds 3x ETF overnight (core 288-292). CONFIR
+B12+E6 [MEDIUM] B12 relay hides bridge's Webull link state: jb_webull_relay 147-170 handles only fticks/follow_ok/err; bridge broadcasts only 'stale' (webull_bridge 4
+B3 [MEDIUM] B3 bridge down/crashed: no "prices stopped" push (paper_trader 649 returns while not session_ok), no push on safe mode (core 867-869), backup stop not
+B4+E15 [MEDIUM] B4 tick times not checked for age/order: hours-old tick sets last price, fires trailing stop, resets stall timer; one future-stamped tick stops bars c
+B5+E12 [MEDIUM] B5 overnight auto-enable race: bridge answers from cached flag; at bridge start says yes before asking Webull; algo then waits 3 h (webull_bridge 158-
+C10+G-LOW-5 [MEDIUM] C10 MEDIUM "Today total", loss bar, phone "$ left today" use whole open P&L not today's (trading.html 197-198, phone.html 132-134; extras.py:460 doesn
+C11 [MEDIUM] C11 MEDIUM exit-plan parts cancel each other's sells (tradetools 520-536 one guard per part; orders.py 156-189 cancels all open sell tickets for the s
+C12 [MEDIUM] C12 MEDIUM Webull sell whose reply times out marked Refused (ticket.py 441-448 any exception from _wb_send 266-281), place() False (595), sell_now sen
+C13 [MEDIUM] C13 MEDIUM SELL ALL automatic follow-up only for first press after start (guardian 454 origin None; _reset_sellall 493-499; 30 s cadence). CONFIRMED c
+C14+E9 [MEDIUM] C14 MEDIUM while Go Live runs, ./jb restart or Saturday 7 am refresh restarts paper trader which waits 60 s and exits (run-service.sh 58-63, KeepAlive
+C15 [MEDIUM] C15 MEDIUM gateway restart mid-SELL ALL leaves "by: sellall" pause mark forever (killswitch 162-171 writes; only _work end 798-807 clears; _runs in me
+C16 [MEDIUM] C16 MEDIUM after gateway restart, off-board positions held from earlier day count $0 toward loss limit (trading.py:172 _offboard memory only; summary 
+D10 [MEDIUM] ### D10 MEDIUM (logic): Calculator and Hedge Partners recommend the most expensive way to get flat, never the cheapest
+D11 [MEDIUM] ### D11 MEDIUM: Futures without a board price are counted at a fraction of their size; non-index futures count as Nasdaq-100
+D12 [MEDIUM] ### D12 MEDIUM: Inverse funds the board doesn't know are counted as LONG until history arrives
+D13 [MEDIUM] ### D13 MEDIUM (logic): "Ranked by a backtest" ranks luck: on a record with no edge, 9 of 20 shown ideas look profitable
+D3 [MEDIUM] ### D3 MEDIUM: One empty position answer from the broker makes the algo forget its hedge and buy a second one
+D4 [MEDIUM] ### D4 MEDIUM: A partly filled hedge is never topped up
+D5 [MEDIUM] ### D5 MEDIUM: Futures hedge orders are sent while CME is closed (Friday 6-8 pm ET, early-close days)
+E10 [MEDIUM] E10 Sunday 17:00 self-test (guardian 619) collides with ibauto planned restart -> weekly urgent "Board check: 1 down" push. CONFIRMED test_syscheck 4.
+E11 [MEDIUM] E11 loose EXPIRED regex (ibauto 32) restarts IB Gateway at once (feed 127-132, 30-min throttle) with no check Gateway is actually logged out / bridge 
+E13 [MEDIUM] E13 nightly 2:30 am backup tar includes settings.env (Webull secret, board password, ntfy topic, widget key) at mode 644 in 755 dir; optional iCloud c
+E14 [MEDIUM] E14 twins "expected" overnight uses stale Yahoo base price when base not on a board (mdata price 195-207, twins 253-268); default IBKR watchlist lacks
+E7 [MEDIUM] E7 empty Webull board watchlist -> bridge reconnects to Webull every ~3.4 min 4 am-8 pm (~280/day, 6 s gaps for followers): stall watch uses server.la
+E8 [MEDIUM] E8 3 am log trim (guardian trim_logs 537-547, >20 MB cut to 5 MB in place) -> ibauto read_new 156-157 pos=0 re-feeds 5 MB with replay=False -> old "to
+F10 [MEDIUM] F10 MEDIUM 2-year Replay grades today's hand-picked lists (rc_replay 135-160, 307-310) -> hindsight bias; Replay stands in for live grades until 20 li
+F2 [MEDIUM] F2 MEDIUM DST: volume baselines step back 24 h blocks (signals.py 214-218 _volume_ratio; why.py 214-218 volume_view) -> week after clock change wrong 
+F4 [MEDIUM] F4 MEDIUM WHY? "Best guess" ignores leverage/beta (signals.py 668-682; sector empty for funds; market always SPY) -> TQQQ +3% / SQQQ -3% on QQQ +1% sa
+F5 [MEDIUM] F5 MEDIUM earnings push fires during the day before an after-close report (signals 529-542 report day included) and its once-per-report key (591-596) 
+F6 [MEDIUM] F6 MEDIUM futures "since 4 pm close" really since 4:15 pm: Yahoo 15-min bars stamped at start, board reads 4:00 bar close (world.py 252, 258-259; same
+F7 [MEDIUM] F7 MEDIUM after a market holiday, session split/gap scorecard/desk notes point at the holiday (analysis.py 171-181 _windows skips weekends only) -> wh
+F8 [MEDIUM] F8 MEDIUM market/sector/own split subtracts the stock's beta x market from the sector move (why.py 736-751 spart = sec_m - mpart; scanwhy.py 138-150 s
+F9 [MEDIUM] F9 MEDIUM Report Card dates politicians' trades on trade day not reported day (reportcard.py 532-552) -> d5/d20 already past when recorded (look-ahead
+G-MED-1 [MEDIUM] G-MED-1 auth cookie no Secure flag (login Set-Cookie ~383; Max-Age 1 year, HttpOnly, SameSite=Lax) -> sent over plaintext LAN http. CONFIRMED inspecti
+G-MED-2 [MEDIUM] G-MED-2 cookie = HMAC(password, b'jb-auth-v1'), identical every login, never rotates, no logout/revocation; leak (LAN sniff, log, backup) = permanent 
+G-MED-3 [MEDIUM] G-MED-3 keep-alive desync: GET/HEAD handlers don't drain Content-Length body; next read_head parses it as a new request (read_head ~69-81; loop ~128-1
+G-MED-4 [MEDIUM] G-MED-4 self.fails dict keyed by XFF-controlled IP never evicts keys. CONFIRMED g1b_fails_memory.py 63 -> 111 MB per 200k addresses.
+G-MED-5 [MEDIUM] G-MED-5 widget key is a long-lived bearer secret in the URL (logged by proxies, saved in iOS, printed on Night Desk setup page), never rotates, return
+H1 [MEDIUM] ### H1: MEDIUM: A stop-loss exit that doesn't fill is only re-sent every 2 minutes
+H2 [MEDIUM] ### H2: MEDIUM: No back-off after Yahoo refuses the crumb, so Yahoo traffic triples while rate-limited
+A-minor [LOW] Other LOW/TRACED: paper after-hours fill model 0.1% cost vs 0.05% offset (misses fills), commissions default 0; jb_robust runs backtest with options=N
+A7 [LOW] A7 LOW: paper kill / daily-loss pause fills at last price even when market closed (core 351-366 sim_price with session_at() or 'overnight'). CONFIRMED
+A8+B14 [LOW] A8 LOW: Bollinger ddof=1 (~2.6% wider); VWAP resets at UTC midnight (8/7 pm ET) indicators.py 97-105; RSI of flat price = 100 (indicators.py:57); ATR/
+A9 [LOW] A9 LOW: backtest drops signals on a session's last minute (backtest.py:122 requires same session). CONFIRMED.
+B-minor [LOW] TRACED notes: 2-s timer holds lock during HTTP calls (up to 15 s) delaying ticks; account check 'MARGIN' in kind accepts "NON_MARGIN"; no history back
+B13 [LOW] B13 3:59 pm bar never acted on in paper/live (handed over at 4:00:02 = after-hours; core 286-292); backtest does act. CONFIRMED t12.
+B15 [LOW] B15 backup stop FILLED with no quantity treated as gone (core 764 vs live_broker 344). CONFIRMED t12. Field name TRACED.
+B7 [LOW] B7 live starts when open-order list unreadable (paper_trader 193-199; live_broker 212-236 one page of 100, deprecated endpoint, no pagination). CONFIR
+C17 [LOW] C17 LOW scheduled order "running" at restart stays running forever (orders.py 750-763; no reset like _unstick_guards 1029). TRACED.
+C18 [LOW] C18 LOW Stop Live never verifies no algo order left (paper_trader 521-530 cancels only if connected, 1 s wait; cancel_working only remembered orders l
+C19 [LOW] C19 LOW Webull SELL ALL lacks PARTIAL_CANCELLED as final (killswitch 715, 735-738; webull live_broker:42) vs ticket.py 470-471. TRACED; status name un
+D14 [LOW] ### D14 LOW: Short TQQQ: SQQQ is labelled "Bull Twin"
+D15 [LOW] ### D15 LOW: Hedge orders the trader refuses itself still count toward the 30-orders-a-day limit, which then pauses live trading
+D16 [LOW] ### D16 LOW: IBKR: the hedge's first price after Auto-Hedge is switched on can be hours old, and is used as "fresh"
+D17 [LOW] ### D17 LOW: IBKR start-up does not take over a hedge that filled while the algo was stopping (Webull does)
+D18 [LOW] ### D18 LOW: Paper hedge results are not realistic in two ways
+D6 [LOW] ### D6 LOW: Only the first hedge rejection of a run is pushed
+D7 [LOW] ### D7 LOW: Paper hedge forgets which position it belongs to after a restart, and then resizes on price moves
+D8 [LOW] ### D8 LOW: A part exit can sell more of the hedge fund than the account holds (IBKR: a short sale on margin)
+E16 [LOW] E16 relay callbacks on reader thread; stalled handler (Webull algo sends live orders synchronously under lock, paper_trader 534-540 -> live_broker ~27
+E17 [LOW] E17 early-close days: syscheck expected() 82-103 expects prices 5-8 pm -> red + push. CONFIRMED.
+E18 [LOW] E18 health dot permanently amber when JB_SEC_EMAIL or WEBULL_ACCOUNT_ID unset (syscheck 342-346). CONFIRMED.
+E19 [LOW] E19 ibauto "login expired" shown as info (syscheck 168). CONFIRMED.
+E20 [LOW] E20 ./jb stop <svc> exits 1 (jb 159); status/restart/url exit 1 with password set (jb 136). CONFIRMED.
+E21 [LOW] E21 menubar/jb-health.1m.py shebang points at a temp test path (commit 907d932); Mac copy may differ. CONFIRMED.
+E22 [LOW] E22 IBC downloaded "latest" unpinned, no checksum (ib-autologin 48); AcceptIncomingConnectionAction=accept (93) -> use reject; IBKR username not scrub
+E23 [LOW] E23 crosscheck "prices disagree" block lapses during slow feeds jobs (feeds _loop 589-608; ibnews up to 150 s; algos accept file <90 s, core 861-863).
+E24 [LOW] E24 relative volume buckets ignore early closes (mdata _sess_of 414-415). TRACED.
+E25 [LOW] E25 no budget for IBKR ~100 market-data lines (bridge 2/stock, scanner 30, algos); error 101 only as tile status. TRACED.
+F11 [LOW] F11 LOW volume uses IBKR record whole when IBKR ever recorded the symbol -> "thin volume" while IBKR down (why.py 189-203; signals 230-242). CONFIRMED
+F12 [LOW] F12 LOW scanwhy uses one market (Nasdaq futures) for every symbol's beta (scanwhy 286-287, 131-140). CONFIRMED t11.
+F13 [LOW] F13 LOW Top 5 grades all due horizons at first refresh however late (top5.py 126-137). CONFIRMED t08.
+F14+H10 [LOW] F14 LOW flat 3% big-move / 1.5% fast-move thresholds treat 3x funds like stocks; repeats each session -> ~6 pushes for one ordinary Nasdaq night (sign
+F15 [LOW] F15 LOW "typical earnings move" is a 2-day move (signals 545-576) -> real 5% reaction counted as 7.1% typical, doesn't push. CONFIRMED t15.
+F16 [LOW] F16 LOW scanner treats 1-4 pm on early-close days as regular (picks.py 163-167, 207-210; aggregator 21-35; intraday 57; scanner 91-103, 149-168) -> wr
+F17 [LOW] F17 LOW scanner volume/range checks blind first 15 min of every session (aggregator 50 keeps 48 windows; detectors 24-31, 55-104 same-session baseline
+F18 [LOW] F18 LOW "similar setups" steps back 24 h blocks across DST and includes holidays (why.py 440-451). CONFIRMED t10.
+F19 [LOW] F19 LOW "yesterday's high" inconsistent: why.levels switches at midnight; signals push after 4 pm calls today's high "yesterday's" (why 499-504; signa
+F20 [LOW] F20 LOW stretch label direction wrong when triggered by low RSI while above VWAP (why.py 770-771). CONFIRMED t16.
+F21 [LOW] F21 LOW Report Card bookkeeping (TRACED): meters close/after windows same moment counted twice (meters 74; reportcard 392-399); SVXY listed as inverse
+F22+H3 [LOW] F22 LOW session rules differ: why.session_of (66-75) Thanksgiving "regular"; extras._session (404-407) "Overnight" night before holiday; edge.rebalanc
+F23 [LOW] F23 LOW minor (TRACED): detectors fade/new_high_low_volume don't check back-to-back (255-312); track.py 26-61 saves picks on holidays, scores forming 
+G-LOW-1 [LOW] G-LOW-1 widget "feed Down" driven by health warn not price staleness (rate-limit or unset JB_SEC_EMAIL/WEBULL_ACCOUNT_ID pins amber, cf E18). TRACED.
+G-LOW-10+H16 [LOW] G-LOW-10 stale "Holidays are not known" badge title in web/board.js. TRACED.
+G-LOW-2 [LOW] G-LOW-2 widget times use phone local TZ, no ET label. TRACED.
+G-LOW-3 [LOW] G-LOW-3 widget chart plots by array index not time (gaps evenly spaced; fallback mixes cadences). TRACED.
+G-LOW-4 [LOW] G-LOW-4 Lock Screen accessoryCircular never renders "Board Down" (error/no data = blank/zero ring looks like flat day); widget_setup lock copy promise
+G-LOW-6 [LOW] G-LOW-6 Roku can play a silent segment from a stale clip hash (ChannelView.brs never clears m.chClips; ChannelTask keeps 24 newest files). TRACED.
+G-LOW-7 [LOW] G-LOW-7 channel.py _mem['v'] accumulates mv:/fut: keys unbounded. TRACED.
+G-LOW-8 [LOW] G-LOW-8 tvview._bars() min/max over empty week raises ValueError -> /api/tv error for new/illiquid symbol or long outage. TRACED.
+G-LOW-9 [LOW] G-LOW-9 Roku learnHome accepts a new home URL from any response (LAN spoof). TRACED.
+H11 [LOW] ### H11: LOW: An empty morning card is pushed and shown when the gateway starts in the 7:00 or 9:00 window
+H12 [LOW] ### H12: LOW: With the default strategy name, the Webull algo page scrolls sideways on an iPhone
+H13 [LOW] ### H13: LOW: The safe-mode message prints the Mac's local time with no zone, not New York time
+H14 [LOW] ### H14: LOW: Health and System check say "Webull last price 2 min ago" while Webull prices arrive every second
+H15 [LOW] ### H15: LOW (TRACED): The fast-move and big-move alerts have no market-closed guard
+H4 [LOW] ### H4: LOW: After a slow Webull bridge restart, the Webull algo and scanner reconnect up to 2 minutes late
+H5 [LOW] ### H5: LOW: The Health page's Webull price card says "market closed, normal" overnight even when the plan streams overnight
+H6 [LOW] ### H6: LOW: A 15-minute Webull outage in market hours sends no "Board problem" push
+H7 [LOW] ### H7: LOW: Two pushes go out for the same Sunday weekly IBKR sign-in
+H8 [LOW] ### H8: LOW: System check says "SEC filings ok" and "Earnings ok" while both are failing
+H9 [LOW] ### H9: LOW: The Overnight session check says "ALL OK" during the day, on weekends and on Sundays

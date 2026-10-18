@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · Trading Algo</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--amber-bright:#2f7a44;--amber-dim:#0f3320;
+    --green:#00ff41;--red:#ff3b30;--white:#f2f2f2;--dim:#6f8aa3;--warn:#ffb648;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  body{padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px 14px 30px;}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line-bright);padding-bottom:12px;margin-bottom:16px;}
+  h1{font-size:15px;margin:0;letter-spacing:.06em;}
+  #conn{font-size:12px;color:var(--dim);} #conn.live{color:var(--green);} #conn.dead{color:var(--red);}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:900px){.grid{grid-template-columns:1fr;}}
+  .card{background:var(--panel);border:1px solid var(--line-bright);border-radius:10px;padding:14px 16px;min-width:0;}
+  .card h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 12px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .tag{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--amber-dim);color:var(--amber-bright);text-transform:none;letter-spacing:0;white-space:nowrap;}
+  .tag.live{background:#3a1010;color:#ff8a80;}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13px;}
+  .k{color:var(--dim);} .v{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+  .up{color:var(--green);} .down{color:var(--red);} .warn{color:var(--warn);}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
+  th{text-align:right;color:var(--dim);font-weight:500;padding:6px 6px;border-bottom:1px solid var(--line-bright);white-space:nowrap;}
+  td{padding:6px 6px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;}
+  th:first-child,td:first-child{text-align:left;}
+  .empty{color:var(--dim);font-size:12px;padding:14px 4px;text-align:center;}
+  canvas{width:100%;height:120px;display:block;margin-top:12px;}
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px;}
+  .metric{background:var(--amber-dim);border-radius:6px;padding:8px 10px;}
+  .metric .l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;}
+  .metric .n{font-size:15px;font-weight:700;margin-top:2px;}
+  .note{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.5;}
+  .banner{border:1px solid #5a1a1a;background:#2a0a0a;color:#ff8a80;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;display:none;}
+  .wide{grid-column:1 / -1;}
+  .opt table{margin-top:0;max-width:560px;}
+  .opt th,.opt td{text-align:center;} .opt th:first-child,.opt td:first-child{text-align:left;}
+  .opt td small{display:block;color:var(--dim);font-size:10px;font-weight:400;}
+  .opt input[type=checkbox],.opt input[type=radio]{width:20px;height:20px;accent-color:#2f7a44;vertical-align:middle;margin:0 4px 0 0;}
+  .opt input[type=number]{width:84px;font:inherit;font-size:15px;padding:6px 8px;border-radius:6px;border:1px solid var(--line-bright);background:#000;color:var(--white);}
+  .opt .row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:14px;font-size:13px;}
+  .opt .row .lbl{color:var(--dim);min-width:150px;}
+  .opt label{white-space:nowrap;cursor:pointer;}
+  .opt .hint{font-size:11px;color:var(--dim);margin:4px 0 0;line-height:1.5;flex-basis:100%;}
+  .opt .buttons{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px;}
+  .opt button{font:inherit;font-weight:700;font-size:13px;padding:9px 16px;border-radius:6px;border:1px solid var(--line-bright);background:var(--amber-dim);color:var(--white);cursor:pointer;}
+  .opt button.primary{background:#2f7a44;border-color:#2f7a44;}
+  .opt button:disabled{opacity:.5;cursor:default;}
+  #o-msg{font-size:12px;} #o-msg.bad{color:var(--red);} #o-msg.good{color:var(--green);}
+  .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;font-size:12px;}
+  .ctl select{font:inherit;font-size:13px;padding:7px 8px;border-radius:6px;border:1px solid var(--line-bright);background:#000;color:var(--white);max-width:100%;}
+  .ctl button{font:inherit;font-weight:700;font-size:13px;padding:8px 14px;border-radius:6px;border:1px solid var(--line-bright);background:var(--amber-dim);color:var(--white);cursor:pointer;}
+  .ctl button:disabled{opacity:.5;cursor:default;}
+  .ctl button.kill{background:#5a1010;border-color:#a33;color:#fff;}
+  .ctl button.go{background:#2f7a44;border-color:#2f7a44;}
+  .ctl .msg{color:var(--dim);} .ctl .msg.bad{color:var(--red);white-space:pre-wrap;} .ctl .msg.good{color:var(--green);}
+  .stopped{border:1px solid #a33;background:#2a0a0a;color:#ffb0a8;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:12px;line-height:1.5;display:none;}
+  tr.day td{background:#0b2238;color:var(--dim);font-weight:600;}
+  #rep-sum{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--dim);} #rep-sum b{color:var(--white);}
+  @media (max-width:520px){ #rep-table td:nth-child(3),#rep-table th:nth-child(3){display:none;} }
+  @media (max-width:520px){ .metrics{grid-template-columns:repeat(2,1fr);} td:nth-child(5),th:nth-child(5){display:none;} .opt .row .lbl{min-width:100%;} .opt label{white-space:normal;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1 id="title">TRADING ALGO</h1><span id="conn">loading…</span></header>
+<div class="banner" id="banner"></div>
+<div class="grid">
+  <div class="card">
+    <h2>Paper / live trading <span class="tag" id="mode">—</span></h2>
+    <div class="kv">
+      <div class="k">Strategy</div><div class="v" id="l-strategy">—</div>
+      <div class="k">Symbol</div><div class="v" id="l-symbol">—</div>
+      <div class="k">Feed</div><div class="v" id="l-feed">—</div>
+      <div class="k">Last price</div><div class="v" id="l-price">—</div>
+      <div class="k">Session now</div><div class="v" id="l-session">—</div>
+      <div class="k">Position</div><div class="v" id="l-pos">flat</div>
+      <div class="k">Unrealized P&amp;L</div><div class="v" id="l-upnl">—</div>
+      <div class="k">Equity</div><div class="v" id="l-equity">—</div>
+      <div class="k">Return since start</div><div class="v" id="l-ret">—</div>
+      <div class="k">Last order</div><div class="v" id="l-order">—</div>
+    </div>
+    <canvas id="live-curve"></canvas>
+    <table><thead><tr><th>Time</th><th>Side</th><th>Shares</th><th>Price</th><th>Reason</th></tr></thead>
+      <tbody id="live-trades"><tr><td colspan="5" class="empty">No trades yet</td></tr></tbody></table>
+    <div class="note" id="live-note"></div>
+    <div class="stopped" id="stopped"></div>
+    <div class="ctl"><button class="kill" id="k-stop" type="button" title="Closes the algo's position now and stops it opening new ones">Stop &amp; close position</button>
+      <button class="go" id="k-resume" type="button" style="display:none">Resume trading</button><span class="msg" id="k-msg"></span></div>
+  </div>
+  <div class="card">
+    <h2>Last backtest <span class="tag" id="bt-tag">—</span></h2>
+    <div class="metrics" id="bt-metrics"></div>
+    <canvas id="bt-curve"></canvas>
+    <table><thead><tr><th>Time</th><th>Side</th><th>Shares</th><th>Price</th><th>Reason</th></tr></thead>
+      <tbody id="bt-trades"><tr><td colspan="5" class="empty">Run a backtest to see results here</td></tr></tbody></table>
+    <div class="note" id="bt-note"></div>
+    <div class="ctl"><select id="b-strat" aria-label="Strategy to backtest"></select>
+      <button class="go" id="b-run" type="button">Run backtest</button><span class="msg" id="b-msg"></span></div>
+  </div>
+  <div class="card wide" id="rep-card">
+    <h2>Paper trading report <span class="tag" id="rep-tag">—</span></h2>
+    <div id="rep-sum"></div>
+    <canvas id="rep-curve"></canvas>
+    <div style="overflow-x:auto"><table id="rep-table"><thead><tr><th>Exit (ET)</th><th>Sessions</th><th>Shares</th><th>Entry</th><th>Exit</th><th>P&amp;L</th><th>P&amp;L %</th><th>Running total</th></tr></thead>
+      <tbody id="rep-rows"><tr><td colspan="8" class="empty">No finished trades yet</td></tr></tbody></table></div>
+    <div class="note">One line per finished trade (entry to exit), newest day first, with each day's total. The line chart is the running total of profit and loss, trade by trade. Paper trades are simulated: real fills, especially outside regular hours, can be worse.</div>
+  </div>
+  <div class="card wide opt" id="opt-card">
+    <h2>Trading options <span class="tag" id="o-source">—</span></h2>
+    <table>
+      <thead><tr><th>Session (US Eastern)</th><th>Paper &amp; backtest</th><th>Live</th></tr></thead>
+      <tbody>
+        <tr><td>Regular hours<small>9:30 am – 4:00 pm · always on</small></td><td><input type="checkbox" checked disabled aria-label="regular hours, paper"></td><td><input type="checkbox" checked disabled aria-label="regular hours, live"></td></tr>
+        <tr><td>Pre-market<small>4:00 – 9:30 am</small></td><td><input type="checkbox" id="p-premarket" aria-label="pre-market, paper and backtest"></td><td><input type="checkbox" id="l-premarket" aria-label="pre-market, live"></td></tr>
+        <tr><td>After-hours<small>4:00 – 8:00 pm</small></td><td><input type="checkbox" id="p-afterhours" aria-label="after-hours, paper and backtest"></td><td><input type="checkbox" id="l-afterhours" aria-label="after-hours, live"></td></tr>
+        <tr><td>Overnight<small>8:00 pm – 3:50 am, Sun–Thu nights</small></td><td><input type="checkbox" id="p-overnight" aria-label="overnight, paper and backtest"></td><td><input type="checkbox" id="l-overnight" aria-label="overnight, live"></td></tr>
+      </tbody>
+    </table>
+    <div class="row"><span class="lbl">Order type</span>
+      <label><input type="radio" name="otype" id="o-limit" value="limit">Limit</label>
+      <label><input type="radio" name="otype" id="o-market" value="market">Market</label>
+      <p class="hint">Market orders are only sent 9:30 am – 4:00 pm. Outside those hours the algo always sends a limit order instead (brokers take only limit orders then).</p></div>
+    <div class="row"><span class="lbl">Limit price</span>
+      <label><input type="number" id="o-offset" step="0.01" min="-5" max="5" inputmode="decimal"> % from the last price</label>
+      <p class="hint">Buys are priced this much above the last trade, sells this much below (at least one cent), so they fill quickly. A negative number waits for a better price instead — for entries only: exits (exit rule, stop-loss, trailing stop) are always priced to fill. Spreads are wider outside regular hours: a small number there often goes unfilled.</p></div>
+    <div class="row"><span class="lbl">Cancel if not filled after</span>
+      <label><input type="number" id="o-wait" step="1" min="5" max="3600" inputmode="numeric"> seconds</label>
+      <p class="hint">An unfilled limit order is cancelled — not an error. If the rule still says buy or sell, the algo tries again later.</p></div>
+    <div class="row"><span class="lbl">Trailing stop</span>
+      <label><input type="checkbox" id="o-trail-on">On</label>
+      <label><input type="number" id="o-trail" step="0.1" min="0.01" max="50" inputmode="decimal"> % below the best price since entry</label>
+      <p class="hint">The algo watches every trade and sends the exit order (limit or market, as above) when the price falls this far from its best since the entry (rises, for a short). It is not held at the broker, so it only works while the algo is running.</p></div>
+    <div class="row"><span class="lbl">Extra cost outside regular hours</span>
+      <label><input type="number" id="o-cost" step="0.01" min="0" max="5" inputmode="decimal"> % per fill</label>
+      <p class="hint">Paper trading and backtests only: fills in pre-market, after-hours and overnight cost this much more, for the wider spreads.</p></div>
+    <div class="buttons"><button class="primary" id="o-save" type="button">Save</button>
+      <button id="o-reset" type="button">Use the strategy file's settings</button><span id="o-msg"></span></div>
+    <div class="note">Saved on the spare Mac; the running algo picks changes up within about 5 seconds (live trading: from its next order). Overnight orders go to IBKR's overnight venue or Webull's night session, limit orders only.</div>
+  </div>
+</div>
+</div>
+<script>
+(function(){
+  'use strict';
+  var name = (new URLSearchParams(location.search).get('name') || 'webull').toLowerCase() === 'ibkr' ? 'ibkr' : 'webull';
+  var NICE = name === 'ibkr' ? 'IBKR' : 'WEBULL';
+  document.getElementById('title').textContent = NICE + ' TRADING ALGO';
+  document.title = "Alex Hale's Board · " + NICE + ' Algo';
+  var $ = function(id){ return document.getElementById(id); };
+  var paused = false, lastLive = null, lastBt = null;
+
+  function money(v){ if(v == null || isNaN(v)) return '—'; return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function ago(iso){ if(!iso) return ''; var s = Math.round((Date.now() - new Date(iso).getTime())/1000);
+    return s < 60 ? Math.max(s,0)+'s ago' : s < 3600 ? Math.round(s/60)+'m ago' : s < 172800 ? Math.round(s/3600)+'h ago' : Math.round(s/86400)+'d ago'; }
+  function dir(el, v){ el.classList.remove('up','down'); if(v > 0) el.classList.add('up'); else if(v < 0) el.classList.add('down'); }
+  function cell(tr, text, cls){ var td = document.createElement('td'); td.textContent = text; if(cls) td.className = cls; tr.appendChild(td); }
+  function trades(tbody, list, emptyText, dateOnly){
+    tbody.innerHTML = '';
+    if(!list || !list.length){ var tr = document.createElement('tr'), td = document.createElement('td');
+      td.colSpan = 5; td.className = 'empty'; td.textContent = emptyText; tr.appendChild(td); tbody.appendChild(tr); return; }
+    list.slice().reverse().slice(0, 50).forEach(function(t){
+      var tr = document.createElement('tr'), d = new Date(t.time);
+      cell(tr, dateOnly ? d.toLocaleDateString() : d.toLocaleString([], {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}));
+      cell(tr, t.side, t.side === 'buy' ? 'up' : 'down'); cell(tr, String(t.shares)); cell(tr, Number(t.price).toFixed(2)); cell(tr, t.reason);
+      tbody.appendChild(tr);
+    });
+  }
+  function curve(canvas, pts){
+    var dpr = window.devicePixelRatio || 1, w = canvas.clientWidth * dpr, hgt = 120 * dpr, ctx = canvas.getContext('2d');
+    canvas.width = w; canvas.height = hgt; ctx.clearRect(0, 0, w, hgt);
+    if(!pts || pts.length < 2){ ctx.fillStyle = '#6f8aa3'; ctx.font = (11*dpr)+'px monospace'; ctx.fillText('equity curve appears after a few bars', 8*dpr, hgt/2); return; }
+    var ys = pts.map(function(p){ return p[1]; }), min = Math.min.apply(null, ys), max = Math.max.apply(null, ys), rng = (max - min) || 1, pad = 6*dpr;
+    ctx.strokeStyle = 'rgba(111,138,163,.35)'; ctx.lineWidth = dpr; ctx.setLineDash([3*dpr, 3*dpr]);
+    var y0 = hgt - pad - (hgt - 2*pad) * ((ys[0] - min) / rng); ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(w, y0); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = ys[ys.length-1] >= ys[0] ? '#00ff41' : '#ff3b30'; ctx.lineWidth = 1.5*dpr; ctx.beginPath();
+    pts.forEach(function(p, i){ var x = pad + (w - 2*pad) * i / (pts.length - 1), y = hgt - pad - (hgt - 2*pad) * ((p[1] - min) / rng); if(i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+    ctx.stroke();
+  }
+
+  var SESS = {premarket:'pre-market', regular:'regular hours', afterhours:'after-hours', overnight:'overnight'};
+  var EXTRA = ['premarket','afterhours','overnight'];
+  var optDirty = false, optBusy = false, optSeq = 0;   // optSeq: bumped by Save/Reset; older polls are ignored
+  function optFill(o, source){
+    if(!o) return;
+    EXTRA.forEach(function(s){ $('p-'+s).checked = (o.paper_sessions||[]).indexOf(s) >= 0; $('l-'+s).checked = (o.live_sessions||[]).indexOf(s) >= 0; });
+    $('o-limit').checked = o.order_type !== 'market'; $('o-market').checked = o.order_type === 'market';
+    $('o-offset').value = o.limit_offset_pct; $('o-wait').value = o.cancel_after_s;
+    $('o-trail-on').checked = !!o.trailing_stop_pct; $('o-trail').value = o.trailing_stop_pct || 1;
+    $('o-trail').disabled = !o.trailing_stop_pct;
+    $('o-cost').value = o.extended_hours_cost_pct;
+    $('o-source').textContent = source; optDirty = false;
+  }
+  function optRead(){
+    function num(id){ var v = $(id).value.trim(); return v === '' ? null : Number(v); }
+    return {paper_sessions: EXTRA.filter(function(s){ return $('p-'+s).checked; }),
+            live_sessions: EXTRA.filter(function(s){ return $('l-'+s).checked; }),
+            order_type: $('o-market').checked ? 'market' : 'limit',
+            limit_offset_pct: num('o-offset'), cancel_after_s: num('o-wait'),
+            trailing_stop_pct: $('o-trail-on').checked ? num('o-trail') : null,
+            extended_hours_cost_pct: num('o-cost')};
+  }
+  var OPT_NAMES = {limit_offset_pct:'Limit price', cancel_after_s:'Cancel if not filled after', trailing_stop_pct:'Trailing stop',
+    extended_hours_cost_pct:'Extra cost outside regular hours', order_type:'Order type', paper_sessions:'Paper & backtest sessions',
+    live_sessions:'Live sessions'};
+  function optPlain(t){ t = String(t).replace(/^(dashboard settings|trading_options\.json):\s*/, '');
+    Object.keys(OPT_NAMES).forEach(function(k){ t = t.split(k).join(OPT_NAMES[k]); }); return t; }
+  function optMsg(text, cls){ var m = $('o-msg'); m.textContent = optPlain(text); m.className = cls || ''; }
+  function optSend(body, done){
+    if(optBusy) return; optBusy = true; optSeq++; $('o-save').disabled = $('o-reset').disabled = true; optMsg('saving…');
+    fetch('/api/algo/' + name + '/options', {method:'POST', credentials:'same-origin', cache:'no-store',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(function(r){
+      return r.text().then(function(t){ var j = null; try { j = JSON.parse(t); } catch(e){}
+        if(r.status === 401){ (window.top || window).location.href = '/login?next=/'; return; }
+        if(!r.ok) throw new Error((j && j.error) || t || ('HTTP ' + r.status));
+        optSeq++; done(j); });
+    }).catch(function(e){ optMsg('Not saved: ' + e.message, 'bad'); }).then(function(){
+      optBusy = false; $('o-save').disabled = $('o-reset').disabled = false; });
+  }
+  $('o-save').addEventListener('click', function(){
+    var o = optRead();
+    if(o.trailing_stop_pct === null && $('o-trail-on').checked){ optMsg('Enter the trailing stop %.', 'bad'); return; }
+    optSend({options:o}, function(j){ optFill(j.options_saved, 'saved on the dashboard'); optMsg('Saved ✓', 'good'); });
+  });
+  $('o-reset').addEventListener('click', function(){
+    optSend({reset:true}, function(){ optDirty = false; optMsg('Now using the strategy file\'s settings (the algo reports them within a few seconds)', 'good'); poll(); });
+  });
+  function optEdited(e){
+    if(!e.target || e.target.tagName !== 'INPUT') return;
+    if(e.target.id === 'o-trail-on') $('o-trail').disabled = !e.target.checked;
+    optDirty = true; optMsg('unsaved changes — press Save');
+  }
+  $('opt-card').addEventListener('input', optEdited);
+  $('opt-card').addEventListener('change', optEdited);
+  function renderOptions(d){
+    if(optDirty || optBusy) return;            // never overwrite what is being edited
+    if(d.options_saved) optFill(d.options_saved, 'saved on the dashboard');
+    else {
+      var fromLive = d.live && d.live.options && d.live.options_source && d.live.options_source !== 'dashboard';
+      optFill(fromLive ? d.live.options : d.options_defaults, fromLive ? 'from the ' + d.live.options_source : 'built-in defaults');
+    }
+    if(d.options_problem) optMsg(d.options_problem, 'bad');
+  }
+
+  function renderLive(live, age){
+    lastLive = live;
+    var note = $('live-note');
+    if(!live){ $('mode').textContent = 'not started'; note.textContent = 'The ' + NICE + ' paper trader has not run yet. Turn it on in settings.env (' +
+      (name === 'ibkr' ? 'IBKR_ALGO' : 'WEBULL_ALGO') + '=on) and run ./jb restart on the spare Mac.'; curve($('live-curve'), []); return; }
+    $('mode').textContent = (live.mode || '').toUpperCase(); $('mode').className = 'tag' + (live.mode === 'live' ? ' live' : '');
+    $('l-strategy').textContent = live.strategy_name || '—'; $('l-symbol').textContent = live.symbol || '—';
+    var stale = age != null && age > 180;
+    var feed = $('l-feed');
+    feed.textContent = stale ? 'not running (last update ' + Math.round(age/60) + 'm ago)' : live.connected ? '● connected' + (live.last_error ? ' · ' + live.last_error : '') : '● ' + (live.last_error || 'disconnected');
+    feed.className = 'v ' + (stale || (live.connected && live.last_error) ? 'warn' : live.connected ? 'up' : 'down');
+    $('l-price').textContent = live.last_price != null ? Number(live.last_price).toFixed(2) : '—';
+    var se = $('l-session');
+    if('session_now' in live){ se.textContent = (live.session_now ? SESS[live.session_now] : 'market closed') + ' · ' +
+        (live.trading_now ? 'trading' : live.session_now ? 'not turned on' : 'no trading');
+      se.className = 'v' + (live.trading_now ? ' up' : ''); } else se.textContent = '—';
+    $('l-pos').textContent = live.position ? live.position.side + ' ' + live.position.shares + ' @ ' + Number(live.position.entry_price).toFixed(2) : 'flat';
+    var u = $('l-upnl'); u.textContent = money(live.unrealized_pnl); dir(u, live.unrealized_pnl);
+    $('l-equity').textContent = money(live.equity);
+    var r = $('l-ret'); if(live.starting_cash){ var pct = (live.equity / live.starting_cash - 1) * 100; r.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'; dir(r, pct); } else r.textContent = '—';
+    var lo = live.last_order, o = $('l-order');
+    o.textContent = lo ? (lo.side + ' ' + lo.shares + ' · ' + lo.status + (lo.detail ? ' · ' + lo.detail : '') + ' · ' + ago(lo.time)) : '—';
+    o.className = 'v' + (lo && /reject|block|error|fail|unconfirmed/i.test(lo.status) ? ' down' : lo && /unfilled|skip/i.test(lo.status) ? ' warn' : '');
+    trades($('live-trades'), live.trades, 'No trades yet', false);
+    if(!paused) curve($('live-curve'), live.equity_curve);
+    var sess = (live.allowed_sessions || ['regular']).slice().sort(function(a, b){
+      return ['premarket','regular','afterhours','overnight'].indexOf(a) - ['premarket','regular','afterhours','overnight'].indexOf(b); });
+    note.textContent = (live.updated_at ? 'updated ' + ago(live.updated_at) : '') + (live.restored ? ' · state restored after a restart (' + live.restored + ')' : '') +
+      ' · ' + (live.mode === 'live' ? 'live' : 'paper') + ' trades in: ' + sess.map(function(s){ return SESS[s] || s; }).join(', ') +
+      (live.options_problem ? ' · options problem: ' + live.options_problem : '') +
+      ((live.broker_notes || []).length ? ' · ' + live.broker_notes.join(' · ') : '');
+  }
+  function renderBt(bt){
+    lastBt = bt;
+    if(!bt){ $('bt-tag').textContent = '—'; $('bt-metrics').innerHTML = ''; $('bt-note').textContent = 'Pick a strategy below and press Run backtest (the last 10 days of 1-minute prices from ' + (name === 'ibkr' ? 'IBKR' : 'Webull') + ').'; curve($('bt-curve'), []); return; }
+    $('bt-tag').textContent = bt.strategy_name + ' (' + bt.symbol + ')';
+    var m = bt.metrics || {}, box = $('bt-metrics'); box.innerHTML = '';
+    [['total_return_pct','Total return %'],['cagr_pct','CAGR %'],['max_drawdown_pct','Max drawdown %'],['sharpe','Sharpe'],['win_rate_pct','Win rate %'],['num_trades','Trades']].forEach(function(p){
+      if(!(p[0] in m)) return;
+      var d = document.createElement('div'); d.className = 'metric';
+      var l = document.createElement('div'); l.className = 'l'; l.textContent = p[1];
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = m[p[0]] == null ? '—' : m[p[0]];
+      if(/return|cagr/.test(p[0])) dir(n, m[p[0]]);
+      d.appendChild(l); d.appendChild(n); box.appendChild(d);
+    });
+    trades($('bt-trades'), bt.trades, 'No trades in this backtest', true);
+    if(!paused) curve($('bt-curve'), bt.equity_curve);
+    var bo = bt.options, extra = '';
+    if(bo){ extra = ' · sessions: regular' + ((bo.paper_sessions || []).length ? ' + ' + bo.paper_sessions.map(function(s){ return SESS[s]; }).join(', ') : ' only') +
+      ' · ' + bo.order_type + ' orders' + (bo.trailing_stop_pct ? ' · trailing ' + bo.trailing_stop_pct + '%' : '') +
+      (m.orders_unfilled ? ' · ' + m.orders_unfilled + ' of ' + m.orders_sent + ' orders not filled' : ''); }
+    $('bt-note').textContent = bt.bars_used + ' bars, ' + new Date(bt.range_start).toLocaleDateString() + ' → ' + new Date(bt.range_end).toLocaleDateString() + ' · ran ' + ago(bt.ran_at) + extra;
+  }
+
+  // ---------------------------------------------------------------- paper trading report
+  var ET_FMT = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York', month:'short', day:'numeric', weekday:'short'});
+  var ET_TIME = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York', hour:'numeric', minute:'2-digit'});
+  var SHORT = {premarket:'pre', regular:'regular', afterhours:'after-hrs', overnight:'overnight'};
+  var lastRep = null;
+  function renderReport(live){
+    var list = (live && live.round_trips) || [], body = $('rep-rows');
+    $('rep-tag').textContent = live ? (live.mode === 'live' ? 'LIVE' : 'PAPER') + ' · ' + (live.strategy_name || '') : '—';
+    body.innerHTML = '';
+    if(!list.length){ var tr0 = document.createElement('tr'), td0 = document.createElement('td'); td0.colSpan = 8; td0.className = 'empty';
+      td0.textContent = live ? 'No finished trades yet' : 'The algo has not run yet'; tr0.appendChild(td0); body.appendChild(tr0);
+      $('rep-sum').innerHTML = ''; lastRep = []; if(!paused) curve($('rep-curve'), []); return; }
+    var run = 0, pts = [], wins = 0, days = {}, order = [];
+    list.forEach(function(r){ run += r.pnl; r._run = run; pts.push([r.exit_time, run]); if(r.pnl > 0) wins++;
+      var d = ET_FMT.format(new Date(r.exit_time)); if(!days[d]){ days[d] = {list: [], pnl: 0}; order.push(d); } days[d].list.push(r); days[d].pnl += r.pnl; });
+    pts.unshift([list[0].entry_time, 0]); lastRep = pts;
+    $('rep-sum').innerHTML = '<span>Trades <b>' + list.length + '</b></span><span>Won <b>' + Math.round(wins / list.length * 100) + '%</b></span>' +
+      '<span>Total <b class="' + (run >= 0 ? 'up' : 'down') + '">' + money(run) + '</b></span>';
+    order.reverse().forEach(function(d){
+      var day = days[d], tr = document.createElement('tr'); tr.className = 'day';
+      cell(tr, d); var td = document.createElement('td'); td.colSpan = 4; td.textContent = day.list.length + (day.list.length === 1 ? ' trade' : ' trades'); tr.appendChild(td);
+      cell(tr, money(day.pnl), day.pnl > 0 ? 'up' : day.pnl < 0 ? 'down' : ''); cell(tr, ''); cell(tr, ''); body.appendChild(tr);
+      day.list.slice().reverse().forEach(function(r){
+        var t = document.createElement('tr');
+        cell(t, ET_TIME.format(new Date(r.exit_time)) + (r.reason && r.reason !== 'exit-rule' ? ' · ' + r.reason : ''));
+        cell(t, (SHORT[r.entry_session] || 'closed') + ' → ' + (SHORT[r.exit_session] || 'closed'));
+        cell(t, (r.side === 'short' ? '-' : '') + r.shares);
+        cell(t, Number(r.entry_price).toFixed(2)); cell(t, Number(r.exit_price).toFixed(2));
+        cell(t, money(r.pnl), r.pnl > 0 ? 'up' : r.pnl < 0 ? 'down' : '');
+        cell(t, (r.pnl_pct >= 0 ? '+' : '') + Number(r.pnl_pct).toFixed(2) + '%', r.pnl_pct > 0 ? 'up' : r.pnl_pct < 0 ? 'down' : '');
+        cell(t, money(r._run), r._run > 0 ? 'up' : r._run < 0 ? 'down' : '');
+        body.appendChild(t);
+      });
+    });
+    if(!paused) curve($('rep-curve'), pts);
+  }
+
+  // ---------------------------------------------------------------- Run backtest + kill switch (gateway/algoctl.py)
+  var ctlBusy = false, ctlStrats = '';
+  function ctlSend(body, msgId){
+    if(ctlBusy) return; ctlBusy = true; $(msgId).textContent = '…'; $(msgId).className = 'msg';
+    fetch('/api/algo/' + name + '/control', {method:'POST', credentials:'same-origin', cache:'no-store',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}).then(function(r){
+      return r.json().then(function(j){ if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); renderCtl(j); $(msgId).textContent = ''; });
+    }).catch(function(e){ $(msgId).textContent = 'Not done: ' + e.message; $(msgId).className = 'msg bad'; }).then(function(){ ctlBusy = false; });
+  }
+  function renderCtl(c){
+    if(!c) return;
+    var key = (c.strategies || []).join(',') + '|' + c.current, sel = $('b-strat');
+    if(key !== ctlStrats){ var keep = sel.value; ctlStrats = key; sel.innerHTML = '';
+      (c.strategies || []).forEach(function(f){ var o = document.createElement('option'); o.value = f; o.textContent = f + (f === c.current ? ' (the one the algo runs)' : ''); sel.appendChild(o); });
+      sel.value = keep && (c.strategies || []).indexOf(keep) >= 0 ? keep : (c.current || ''); if(!sel.value && sel.options.length) sel.selectedIndex = 0; }
+    var run = c.run, bm = $('b-msg');
+    $('b-run').disabled = !!(run && run.running);
+    if(run && run.running){ bm.className = 'msg'; bm.textContent = 'Running ' + run.strategy + '… (started ' + ago(new Date(run.started).toISOString()) + '; usually under a minute or two)'; }
+    else if(run && run.error && !ctlBusy){ bm.className = 'msg bad'; bm.textContent = 'The backtest stopped with an error:\n' + run.error; }
+    else if(run && run.ok && !ctlBusy){ bm.className = 'msg good'; bm.textContent = 'Done ✓ ' + ago(new Date(run.ended).toISOString()) + ': results above.'; }
+    var st = $('stopped'), killed = !!c.killed;
+    st.style.display = killed ? 'block' : 'none';
+    if(killed) st.textContent = 'STOPPED by you' + (typeof c.killed === 'string' ? ' (' + new Date(c.killed).toLocaleString() + ')' : '') +
+      '. The algo closed its position' + (lastLive && lastLive.mode === 'live' ? ' (live: when the session allows; check the Last order line and the broker app)' : ' at the last price') +
+      ' and will not open new trades until you press Resume trading. This holds through restarts.';
+    $('k-stop').style.display = killed ? 'none' : ''; $('k-resume').style.display = killed ? '' : 'none';
+  }
+  $('k-stop').addEventListener('click', function(){
+    if(!confirm('Stop the ' + NICE + ' algo?\n\nIt closes its position now and opens nothing new until you press Resume trading.')) return;
+    ctlSend({action:'stop'}, 'k-msg');
+  });
+  $('k-resume').addEventListener('click', function(){ ctlSend({action:'resume'}, 'k-msg'); });
+  $('b-run').addEventListener('click', function(){
+    var f = $('b-strat').value; if(!f) return;
+    ctlSend({action:'backtest', strategy:f}, 'b-msg');
+  });
+  function pollCtl(){
+    fetch('/api/algo/' + name + '/control', {credentials:'same-origin', cache:'no-store'}).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(c){ if(!ctlBusy) renderCtl(c); }).catch(function(){});
+  }
+
+  function poll(){
+    if(paused) return;
+    pollCtl();
+    var seq = optSeq;
+    fetch('/api/algo/' + name, {credentials:'same-origin', cache:'no-store'}).then(function(r){
+      if(r.status === 401){ (window.top || window).location.href = '/login?next=/'; return null; }
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(d){
+      if(!d) return;
+      $('conn').textContent = '● connected to the spare Mac'; $('conn').className = 'live';
+      var b = $('banner'), h = d.live && d.live.mode === 'live' && d.live.halted;
+      b.style.display = h ? 'block' : 'none';
+      if(h) b.textContent = 'LIVE TRADING PAUSED — ' + d.live.halted;
+      renderLive(d.live, d.live_age_s); renderBt(d.backtest); renderReport(d.live);
+      if(seq === optSeq) renderOptions(d);        // a poll sent before a Save/Reset is out of date
+    }).catch(function(e){
+      $('conn').textContent = '● cannot reach the spare Mac — retrying'; $('conn').className = 'dead';
+      if(location.protocol === 'file:'){ var b = $('banner'); b.style.display = 'block';
+        b.textContent = 'Open this page from the spare Mac\'s address (http://<spare-mac>:8090/), not as a file.'; }
+    });
+  }
+  window.addEventListener('message', function(e){
+    if(e.origin === location.origin && e.data && e.data.type === 'jb-visibility'){ paused = !e.data.visible; if(!paused){ poll(); } }
+  });
+  window.addEventListener('resize', function(){ if(lastLive) curve($('live-curve'), lastLive.equity_curve); if(lastBt) curve($('bt-curve'), lastBt.equity_curve); if(lastRep) curve($('rep-curve'), lastRep); });
+  poll(); setInterval(poll, 2000);
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+<script src="algo-lab.js"></script>
+<script src="algo-notes.js"></script>
+<script src="algo-use.js"></script>
+<script src="hedge-algo.js"></script>
+<script src="golive-ui.js"></script>
+</body>
+</html>

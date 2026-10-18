@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · News</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- News tab: headlines about the symbols the board tracks. Data comes from /api/news
+     (gateway/news.py), which reads free Yahoo Finance and Google News feeds on the Mac. -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#2f7a44;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  body{padding:0 env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);}
+  .wrap{max-width:980px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;
+    border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  #status{font-size:11px;color:var(--dim);}
+  #status b{font-weight:600;}
+  .controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:12px 0 6px;}
+  .chip{background:transparent;border:1px solid var(--line-bright);color:var(--dim);font:inherit;font-size:12px;
+    font-weight:600;padding:6px 11px;border-radius:14px;cursor:pointer;white-space:nowrap;}
+  .chip.on{background:var(--line-bright);color:var(--white);}
+  .chip.since{border-color:#7a5c00;color:#ffc400;} .chip.since.on{background:#5a4a10;color:#fff;}
+  .title b.kw{color:#ffc400;font-weight:800;}
+  .chip .n{opacity:.7;font-weight:400;margin-left:4px;}
+  select{font:inherit;font-size:12px;background:var(--panel);color:var(--white);border:1px solid var(--line-bright);
+    border-radius:14px;padding:6px 10px;margin-left:auto;max-width:200px;}
+  .day{font-size:11px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:16px 4px 4px;}
+  .item{display:flex;gap:12px;padding:10px 4px;border-top:1px solid var(--line);}
+  .item:first-of-type{border-top:0;}
+  .when{flex:0 0 52px;color:var(--dim);font-size:11px;padding-top:2px;font-variant-numeric:tabular-nums;}
+  .body{flex:1;min-width:0;}
+  .title{color:var(--white);text-decoration:none;font-size:13.5px;line-height:1.4;font-weight:500;}
+  .title:hover{text-decoration:underline;}
+  .title:visited{color:#aab8c6;}
+  .meta{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:11px;color:var(--dim);}
+  .sym{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10.5px;font-weight:700;letter-spacing:.3px;
+    border:1px solid;cursor:pointer;background:transparent;font-family:inherit;}
+  .sym.stock{color:var(--green);border-color:#0f5a25;}
+  .sym.etf{color:var(--amber);border-color:#6b4a14;}
+  .sym.future{color:var(--cyan);border-color:#0b5866;}
+  .sym.more{color:var(--dim);border-color:var(--line-bright);}
+  .src{margin-left:4px;}
+  .empty{color:var(--dim);padding:30px 4px;text-align:center;line-height:1.6;}
+  .err{background:#2a0a0a;border:1px solid #5a1a1a;color:#ff8a80;border-radius:6px;padding:8px 10px;margin-top:10px;font-size:12px;}
+  @media (max-width:560px){
+    .wrap{padding:0 8px 40px;} h1{font-size:17px;}
+    .when{flex-basis:40px;} select{margin-left:0;max-width:none;flex:1;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NEWS</h1>
+    <div id="status">Loading…</div>
+  </header>
+  <div class="controls" id="controls"></div>
+  <div id="err"></div>
+  <div id="list"><div class="empty">Loading…</div></div>
+</div>
+<script>
+(function(){
+  'use strict';
+  var KINDS = [['all','All'],['future','Futures'],['stock','Stocks'],['etf','ETFs'],['algo','Algos']];
+  var S = {data:null, kind:get('kind') || 'all', sym:get('sym') || '', since:get('since') === '1', visible:true, timer:null, lastLoad:0};
+  function get(k){ try{ return localStorage.getItem('jb_news_' + k); }catch(e){ return null; } }
+  function set(k, v){ try{ if(v) localStorage.setItem('jb_news_' + k, v); else localStorage.removeItem('jb_news_' + k); }catch(e){} }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function ago(ts, now){
+    var s = Math.max(0, now - ts);
+    if(s < 3600) return Math.max(1, Math.round(s / 60)) + 'm';
+    if(s < 86400) return Math.round(s / 3600) + 'h';
+    return Math.round(s / 86400) + 'd';
+  }
+  function dayLabel(ts){
+    var d = new Date(ts * 1000), t = new Date(), y = new Date(); y.setDate(t.getDate() - 1);
+    if(d.toDateString() === t.toDateString()) return 'Today';
+    if(d.toDateString() === y.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString(undefined, {weekday:'long', month:'short', day:'numeric'});
+  }
+  function isAlgo(info){ return info && info.where.some(function(w){ return / Algo$/.test(w); }); }
+  function matchesKind(sym, kind){
+    var info = S.data.symbols[sym];
+    if(!info) return false;
+    if(kind === 'all') return true;
+    if(kind === 'algo') return isAlgo(info);
+    return info.kind === kind;
+  }
+  // "Since 4 pm": only stories published after the last 4:00 pm New York close (the news that
+  // drives overnight moves). Weekends and evenings count back to the last weekday close.
+  var ETF = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York', hour12:false, year:'numeric', month:'numeric', day:'numeric', hour:'numeric', minute:'numeric', weekday:'short'});
+  function lastClose(now){
+    for(var t = now; t > now - 8 * 864e5; t -= 60e3 * 30){
+      var o = {}; ETF.formatToParts(new Date(t)).forEach(function(x){ o[x.type] = x.value; });
+      if(o.weekday !== 'Sat' && o.weekday !== 'Sun' && (+o.hour % 24) === 16 && +o.minute < 30)
+        return t - (+o.minute) * 60e3 - (new Date(t).getSeconds()) * 1000 - new Date(t).getMilliseconds();
+    }
+    return 0;
+  }
+  // bold the words that usually move a stock overnight
+  var KEY = /\b(earnings|guidance|outlook|forecast|revenue|beats?|miss(es|ed)?|FDA|approv(al|es|ed)|downgrades?d?|upgrades?d?|price target|merger|acquisition|acquires?|buyout|lawsuit|recall|SEC|investigation|layoffs?|bankruptcy|CEO|resigns?|split|dividend|offering|halt(ed)?|tariffs?|Fed|CPI|jobs report)\b/gi;
+  function hl(t){ return esc(t).replace(KEY, '<b class="kw">$&</b>'); }
+  function shown(item){
+    if(S.since && item.ts * 1000 < lastClose(Date.now())) return false;
+    if(S.an && !item.analysis) return false;                          // jb-insight: analysis only
+    if(S.an === '3x' && !(item.funds && item.funds.length)) return false;
+    if(S.sym) return item.syms.indexOf(S.sym) >= 0;
+    return item.syms.some(function(s){ return matchesKind(s, S.kind); });
+  }
+
+  function drawControls(){
+    var d = S.data, box = document.getElementById('controls'), counts = {};
+    KINDS.forEach(function(k){ counts[k[0]] = d.items.filter(function(i){
+      return i.syms.some(function(s){ return matchesKind(s, k[0]); }); }).length; });
+    var syms = Object.keys(d.symbols).sort(function(a, b){
+      var ka = d.symbols[a].kind, kb = d.symbols[b].kind;
+      return ka === kb ? (a < b ? -1 : 1) : (ka === 'future' ? -1 : kb === 'future' ? 1 : ka < kb ? 1 : -1);
+    });
+    if(S.sym && !d.symbols[S.sym]){ S.sym = ''; set('sym', ''); }
+    box.innerHTML = KINDS.map(function(k){
+      return '<button class="chip' + (!S.sym && S.kind === k[0] ? ' on' : '') + '" data-kind="' + k[0] + '">' + k[1] +
+        '<span class="n">' + counts[k[0]] + '</span></button>';
+    }).join('') + '<button class="chip since' + (S.since ? ' on' : '') + '" data-since="1" title="Only stories published after the last 4:00 pm ET close">Since 4 pm close</button>' +
+      '<button class="chip' + (S.an === 'all' ? ' on' : '') + '" data-an="all" title="Analysis and opinion articles (Nasdaq.com: Zacks, Motley Fool and others), not plain headlines">Analysis</button>' +
+      '<button class="chip' + (S.an === '3x' ? ' on' : '') + '" data-an="3x" title="Analysis for your 2x/3x funds and the biggest stocks inside them">Analysis: my 3x funds</button>' +
+      '<select id="symSel" aria-label="One symbol"><option value="">Every symbol (' + syms.length + ')</option>' +
+      syms.map(function(s){
+        var i = d.symbols[s], label = s + (i.name ? ' · ' + i.name : '');
+        return '<option value="' + esc(s) + '"' + (s === S.sym ? ' selected' : '') + '>' + esc(label) + '</option>';
+      }).join('') + '</select>';
+  }
+
+  function tag(s){
+    var i = S.data.symbols[s] || {kind:'stock'};
+    return '<button class="sym ' + i.kind + '" data-sym="' + esc(s) + '" title="' + esc((i.name ? i.name + ' · ' : '') +
+      'on: ' + (i.where || []).join(', ') + ' (tap to show only ' + s + ')') + '">' + esc(s) + '</button>';
+  }
+
+  function drawList(){
+    var d = S.data, now = d.server_ts, out = [], lastDay = null;
+    var items = d.items.filter(shown);
+    items.forEach(function(it){
+      var day = dayLabel(it.ts);
+      if(day !== lastDay){ out.push('<div class="day">' + esc(day) + '</div>'); lastDay = day; }
+      var syms = it.syms.slice(0, 6).map(tag).join('') +
+        (it.syms.length > 6 ? '<span class="sym more">+' + (it.syms.length - 6) + '</span>' : '');
+      out.push('<div class="item"><div class="when" title="' + esc(new Date(it.ts * 1000).toLocaleString()) + '">' +
+        ago(it.ts, now) + '</div><div class="body"><a class="title" href="' + esc(it.link) +
+        '" target="_blank" rel="noopener noreferrer">' + hl(it.title) + '</a><div class="meta">' + syms +
+        (it.analysis ? '<span class="src" style="color:#d6a8ff;font-weight:700;letter-spacing:.3px">ANALYSIS</span>' + (it.about && it.about.length ? '<span class="src">about ' + esc(it.about.slice(0, 3).join(', ')) + (it.funds && it.funds.length ? ' (in ' + esc(it.funds.slice(0, 3).join(', ')) + ')' : '') + '</span>' : '') : '') + '<span class="src">' + esc(it.source) + '</span></div></div></div>');
+    });
+    var list = document.getElementById('list');
+    if(out.length){ list.innerHTML = out.join(''); return; }
+    if(d.total && d.loaded < d.total && !d.items.length){
+      list.innerHTML = '<div class="empty">Gathering the first headlines…<br>Checked ' + d.loaded + ' of ' + d.total +
+        ' symbols so far. This page fills in by itself.</div>';
+    } else {
+      list.innerHTML = '<div class="empty">No headlines in the last 3 days' + (S.sym ? ' for ' + esc(S.sym) : ' here') + '.</div>';
+    }
+  }
+
+  function drawStatus(){
+    var d = S.data, st = document.getElementById('status'), bits = [];
+    bits.push('<b style="color:var(--green)">●</b> ' + d.items.length + ' headlines');
+    bits.push(d.loaded < d.total ? 'checked ' + d.loaded + ' of ' + d.total + ' symbols' : d.total + ' symbols');
+    if(d.last_fetch) bits.push('last checked ' + ago(d.last_fetch, d.server_ts) + ' ago');
+    st.innerHTML = bits.join(' · ');
+    var e = document.getElementById('err');
+    e.innerHTML = d.failed && d.failed.length > 3 && d.failed.length >= d.loaded / 2 ?
+      '<div class="err">Can\'t reach the news sites for ' + d.failed.length + ' symbols right now. It keeps retrying by itself. ' +
+      'If this stays for an hour, check the Mac\'s internet connection.</div>' : '';
+  }
+
+  function draw(){ if(!S.data) return; drawControls(); drawStatus(); drawList(); }
+
+  function load(){
+    S.lastLoad = Date.now();
+    fetch('/api/news', {credentials:'same-origin', cache:'no-store'}).then(function(r){
+      if(r.status === 401){ (window.top || window).location.href = '/login?next=/'; return null; }
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(d){
+      if(!d) return;
+      S.data = d; draw();
+      // while the first round of headlines is still coming in, look again sooner
+      schedule(!d.total || d.loaded < d.total ? 20000 : 120000);
+    }).catch(function(){
+      document.getElementById('status').innerHTML = '<b style="color:var(--red)">●</b> can\'t reach the board. Retrying…';
+      document.getElementById('err').innerHTML = '<div class="err">The News tab needs the news part of the gateway. ' +
+        'If this stays red, on the Mac run: <code>./jb restart gateway</code></div>';
+      schedule(30000);
+    });
+  }
+  function schedule(ms){
+    clearTimeout(S.timer);
+    S.timer = setTimeout(function(){ if(S.visible) load(); else S.timer = null; }, ms);
+  }
+
+  document.getElementById('controls').addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.chip');
+    if(!b) return;
+    if(b.hasAttribute('data-an')){ S.an = S.an === b.getAttribute('data-an') ? '' : b.getAttribute('data-an'); draw(); return; }
+    if(b.hasAttribute('data-since')){ S.since = !S.since; set('since', S.since ? '1' : ''); draw(); return; }
+    S.kind = b.getAttribute('data-kind'); S.sym = ''; set('kind', S.kind); set('sym', ''); draw();
+  });
+  document.getElementById('controls').addEventListener('change', function(e){
+    if(e.target.id !== 'symSel') return;
+    S.sym = e.target.value; set('sym', S.sym); draw(); window.scrollTo(0, 0);
+  });
+  document.getElementById('list').addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('.sym[data-sym]');
+    if(!b) return;
+    S.sym = b.getAttribute('data-sym'); set('sym', S.sym); draw(); window.scrollTo(0, 0);
+  });
+  // the dashboard tells hidden tabs to rest; catch up as soon as this one is shown again
+  window.addEventListener('message', function(e){
+    if(e.origin !== location.origin || !e.data || e.data.type !== 'jb-visibility') return;
+    S.visible = !!e.data.visible;
+    if(S.visible && (!S.timer || Date.now() - S.lastLoad > 120000)) load();
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden && S.visible && Date.now() - S.lastLoad > 120000) load();
+  });
+  load();
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+</body>
+</html>

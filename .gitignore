@@ -1,0 +1,9 @@
+settings.env
+data/
+logs/
+voices/
+backup-*/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store

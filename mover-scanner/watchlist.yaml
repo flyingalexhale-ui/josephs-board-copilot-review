@@ -1,0 +1,95 @@
+# Which ETFs to scan, how big a rolling window to bucket ticks into, and which detectors run
+# with what thresholds. Edit the `symbols` list freely -- add/remove tickers any time, the
+# scanner picks up changes on restart. See README.md for how each detector works.
+
+window_minutes: 5          # how often a "window" closes and gets evaluated (the "every 5
+                            # minutes or so" the scanner checks on)
+baseline_windows: 12        # how many PRECEDING windows to keep for the trailing-average
+                            # baselines (12 windows x 5 min = 1 hour of rolling history)
+
+# A starting list of liquid sector/index/leveraged ETFs -- edit this to whatever you actually
+# want watched. Order doesn't matter.
+symbols:
+  - SPY
+  - QQQ
+  - IWM
+  - DIA
+  - XLE
+  - XLF
+  - XLK
+  - XLV
+  - XLI
+  - XLY
+  - XLP
+  - XLU
+  - XLB
+  - XLRE
+  - XLC
+  - SMH
+  - SOXX
+  - ARKK
+  - TQQQ
+  - SQQQ
+  - UVXY
+  - VXX
+  - GLD
+  - SLV
+  - USO
+  - UNG
+  - TLT
+  - HYG
+  - KRE
+  - XBI
+
+# Every detector listed here runs on every symbol above, with these thresholds. Set a
+# detector to `false` to turn it off without deleting the line. README.md ("How the detectors
+# work") explains each one.
+detectors:
+  price_delta_pct:
+    threshold_pct: 0.5          # flag if a single window moves at least this % open->close
+
+  cumulative_delta_pct:
+    threshold_pct: 1.0          # flag if the last N windows add up to at least this % move
+    lookback_windows: 3          # "the last N windows" -- 3 x 5min = 15 minutes
+
+  volume_surge:
+    multiplier: 3.0              # flag if this window's volume is >= this many x the
+                                   # trailing average
+    min_baseline_windows: 3      # need at least this many prior windows before this can fire
+    same_session: true           # compare only with earlier windows from the same session
+                                   # (pre-market / regular / after-hours / overnight)
+
+  # jb-scanwhy (deep search idea 51): six more checks. Set one to false to turn it off.
+  breakout_volume:
+    volume_x: 2.0                # close past this session's high/low with 2x the normal volume
+    min_windows: 4
+    same_session: true
+  vwap_cross:                    # crossed the session's average price paid (VWAP) after 3 windows on the other side
+    min_windows: 4
+    min_pct: 0.1
+    hold_windows: 3
+  squeeze_release:
+    tight_windows: 6             # 6 unusually narrow windows in a row, then a break out of that box
+    multiplier: 2.0
+    same_session: true
+  new_high_low_volume:
+    lookback: 12                 # a new 1-hour high/low while volume keeps falling
+  three_strong:
+    min_pct: 0.3                 # 3 windows in a row the same way, each at least this %
+  fade:
+    move_pct: 1.0                # gave back over half of a move this big in the last 30 minutes
+    lookback: 6
+
+  range_expansion:
+    multiplier: 3.0              # flag if this window's high-low range is >= this many x
+                                   # the trailing average range
+    min_baseline_windows: 3
+    same_session: true
+
+# Which feed(s) to use. With both on, each symbol uses the preferred feed and switches to
+# the other automatically if the preferred one goes quiet for 30 seconds (and back when it
+# returns) -- the two feeds' copies of the same trade are never added together.
+feeds:
+  webull: true
+  ibkr: true
+  prefer: ibkr

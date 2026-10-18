@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · Strategy lab</title>
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- Strategy lab (jb-lab): builder + robustness test, /api/plus/stratlab in gateway/stratlab.py and lib/jb_robust.py -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid #2f7a44;padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  header a{color:var(--cyan);text-decoration:none;font-size:12px;margin-left:12px;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:18px 4px 8px;}
+  .intro{color:var(--dim);font-size:12px;line-height:1.6;margin:10px 4px;} .intro b{color:var(--white);font-weight:600;}
+  .box{background:var(--panel);border:1px solid var(--line-bright);border-radius:10px;padding:12px;margin-bottom:10px;}
+  .tabs2{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+  .tabs2 button{background:transparent;border:1px solid var(--line-bright);color:#8fd8ff;font:inherit;font-size:12px;padding:6px 12px;border-radius:14px;cursor:pointer;min-height:32px;}
+  .tabs2 button.on{border-color:#39e07a;color:#39e07a;}
+  .f{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;}
+  .f label{display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:var(--dim);letter-spacing:.04em;text-transform:uppercase;}
+  select,input{background:#04101f;color:var(--white);border:1px solid var(--line-bright);border-radius:6px;font:inherit;font-size:12px;padding:6px 8px;min-height:32px;}
+  .btn{background:transparent;border:1px solid var(--line-bright);color:#8fd8ff;font:inherit;font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;min-height:34px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:6px 0;}
+  .kpi .l{color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase;} .kpi .v{font-size:20px;font-weight:700;line-height:1.2;} .kpi .s{color:var(--dim);font-size:11px;}
+  .good{color:var(--green);} .mid{color:var(--amber);} .bad{color:var(--red);} .grey{color:var(--dim);}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th:first-child,td:first-child{text-align:left;}
+  th{color:var(--dim);font-weight:500;font-size:11px;}
+  .tw{overflow-x:auto;margin:6px 0;} .tw.tall{max-height:420px;overflow-y:auto;}
+  .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:10px;} .two > *{min-width:0;}
+  .f label{max-width:100%;} select{max-width:100%;}
+  .muted{color:var(--dim);font-size:11px;line-height:1.5;}
+  svg.big{display:block;width:100%;height:200px;} svg.mc{display:block;width:100%;height:120px;}
+  .ok{color:var(--green);} .no{color:var(--red);}
+  .bar{display:inline-block;height:8px;border-radius:2px;background:#2f7a44;vertical-align:middle;margin-left:6px;}
+  .cond{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0;padding:6px;border:1px dashed var(--line-bright);border-radius:8px;}
+  .cond input{width:70px;} .x{background:transparent;border:0;color:var(--dim);font-size:18px;cursor:pointer;}
+  pre{white-space:pre-wrap;font-size:11.5px;color:#cfe0ee;background:#04101f;border:1px solid var(--line);border-radius:6px;padding:8px;max-height:300px;overflow:auto;}
+  .grid5 td{text-align:center;font-weight:600;color:#04101f;} .err{color:#ff8a80;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>STRATEGY LAB</h1><div><a href="./#algo-webull">Webull Algo</a><a href="./#algo-ibkr">IBKR Algo</a><a href="./">Full board</a></div></header>
+  <p class="intro">Build an algo strategy by picking from lists, no files to edit, and test how robust any strategy is. Strategies made here are
+    always <b>paper</b>: the algo can only trade one for real after you switch it on yourself in the file and settings. Research, not advice.</p>
+  <div class="tabs2" id="mode"><button data-m="build" class="on">Build a strategy</button><button data-m="rob">Robustness test</button></div>
+  <div class="box f"><label>Algo<select id="algo"><option value="webull">Webull algo</option><option value="ibkr">IBKR algo</option></select></label></div>
+
+  <div id="build">
+    <div class="box">
+      <div class="f"><label>Name<input id="bName" placeholder="TQQQ overnight breakout" style="width:220px"></label>
+        <label>Symbol<input id="bSym" placeholder="TQQQ" style="width:90px;text-transform:uppercase"></label>
+        <label>Side<select id="bSide"><option value="buy">Buy (go long)</option><option value="sell">Sell (go short)</option></select></label></div>
+      <h2>Buy when ALL of these are true</h2><div id="entry"></div><button class="btn" data-add="entry">+ condition</button>
+      <h2>Sell when ALL of these are true <span class="muted" style="text-transform:none">(optional: leave empty to exit only by stop, target or trailing stop)</span></h2>
+      <div id="exit"></div><button class="btn" data-add="exit">+ condition</button>
+      <h2>Size and protection</h2>
+      <div class="f"><label>% of the algo's money<input id="bPct" type="number" value="25" min="1" max="100" style="width:80px"></label>
+        <label>Stop loss %<input id="bStop" type="number" step="0.1" value="2" style="width:80px"></label>
+        <label>Take profit %<input id="bTgt" type="number" step="0.1" value="4" style="width:80px"></label>
+        <label>Trailing stop %<input id="bTrail" type="number" step="0.1" style="width:80px"></label></div>
+      <h2>Sessions it may trade (paper and backtests; regular hours always)</h2>
+      <div class="f"><label style="flex-direction:row;align-items:center;gap:6px;text-transform:none;font-size:12px"><input type="checkbox" class="bs" value="afterhours" checked> After-hours</label>
+        <label style="flex-direction:row;align-items:center;gap:6px;text-transform:none;font-size:12px"><input type="checkbox" class="bs" value="overnight" checked> Overnight</label>
+        <label style="flex-direction:row;align-items:center;gap:6px;text-transform:none;font-size:12px"><input type="checkbox" class="bs" value="premarket" checked> Pre-market</label></div>
+      <p class="muted">Conditions use the strategy's own symbol (one symbol per algo). <b>This session's high / low</b> = the highest / lowest price so far in the current session
+        (after-hours, overnight, pre-market or regular) before this minute, so "price &gt; this session's high" means a breakout. <b>Time</b> is minutes after midnight New York time
+        (19:30 = 1170). <b>Session</b>: 1 overnight, 2 pre-market, 3 regular, 4 after-hours.</p>
+      <div class="f"><button class="btn" id="bSave">Save strategy</button><button class="btn" id="bSaveBt">Save and run backtest</button><span id="bMsg" class="muted"></span></div>
+      <pre id="bYaml" style="display:none"></pre>
+    </div>
+  </div>
+
+  <div id="rob" style="display:none">
+    <div class="box">
+      <div class="f"><label>Strategy<select id="rStrat"></select></label><label>Change these two numbers<select id="rK1"></select></label><label>and<select id="rK2"></select></label>
+        <button class="btn" id="rGo">Run robustness test</button></div>
+      <p class="muted">Uses the board's own minute record of the symbol (up to 35 days, every session; one price per minute). It runs about 35 backtests in the background, so it can take 10 to 20 minutes on the Mac; you can leave the page and come back.
+        <b>Grid</b>: the two numbers from 60% to 140% of the file's value; green = made money. Mostly green = robust; one green square = luck. A row or column that is all the same means that number never came into play (another rule closed the trade first).
+        <b>Walk-forward</b>: the best of 9 settings is chosen on the older 70% and tested on the newer 30% it never saw.
+        <b>Monte Carlo</b>: the trades reshuffled 1,000 times: realistic worst drop and longest losing streak.</p>
+    </div>
+    <div id="rOut"></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var API = '/api/plus/stratlab';
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function getJ(u) { return fetch(u, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }); }
+  function post(p, d) { return fetch(API + p, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }).then(function (r) { return r.json(); }); }
+  function pc(v) { return v == null ? '–' : (v > 0 ? '+' : '') + Number(v).toFixed(2) + '%'; }
+  var TERMS = [['price', 'Price'], ['vs_close', '% since the 4 pm close'], ['session_high', "This session's high"], ['session_low', "This session's low"],
+    ['vwap', 'VWAP (average price paid today)'], ['sma', 'Simple average (SMA)'], ['ema', 'Exponential average (EMA)'], ['rsi', 'RSI'], ['roc', '% change over N minutes'],
+    ['bb_upper', 'Upper Bollinger Band'], ['bb_lower', 'Lower Bollinger Band'], ['macd_hist', 'MACD histogram'], ['minute', 'Time (minutes after midnight ET)'],
+    ['session', 'Session (1-4)'], ['weekday', 'Weekday (0 Mon - 4 Fri)'], ['num', 'A number']];
+  var NEEDN = { sma: 20, ema: 20, rsi: 14, roc: 15 };
+  function sel(cls, v) { return '<select class="' + cls + '">' + TERMS.map(function (t) { return '<option value="' + t[0] + '"' + (t[0] === v ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select>'; }
+  function addCond(box, a, op, b, bv) {
+    var d = document.createElement('div'); d.className = 'cond';
+    d.innerHTML = sel('ta', a || 'price') + '<input class="na" type="number" placeholder="N">' + '<select class="op"><option>&gt;</option><option>&lt;</option><option>&gt;=</option><option>&lt;=</option></select>' +
+      sel('tb', b || 'num') + '<input class="nb" type="number" step="any" placeholder="value">' + '<button class="x" title="Remove">×</button>';
+    if (op) d.querySelector('.op').value = op;
+    if (bv != null) d.querySelector('.nb').value = bv;
+    function sync() {
+      var ta = d.querySelector('.ta').value, tb = d.querySelector('.tb').value;
+      d.querySelector('.na').style.display = NEEDN[ta] ? '' : 'none'; if (NEEDN[ta] && !d.querySelector('.na').value) d.querySelector('.na').value = NEEDN[ta];
+      d.querySelector('.nb').style.display = (tb === 'num' || NEEDN[tb]) ? '' : 'none'; d.querySelector('.nb').placeholder = tb === 'num' ? 'value' : 'N';
+      if (NEEDN[tb] && !d.querySelector('.nb').value) d.querySelector('.nb').value = NEEDN[tb];
+    }
+    d.addEventListener('change', sync); d.querySelector('.x').onclick = function () { d.remove(); };
+    $(box).appendChild(d); sync();
+  }
+  document.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { addCond(b.dataset.add); }; });
+  addCond('entry', 'price', '>', 'session_high'); addCond('entry', 'vs_close', '>=', 'num', 0.5); addCond('exit', 'session', '>=', 'num', 3);
+  function read(box) {
+    return [].map.call($(box).querySelectorAll('.cond'), function (d) {
+      var ta = d.querySelector('.ta').value, tb = d.querySelector('.tb').value;
+      return { a: { t: ta, n: d.querySelector('.na').value }, op: d.querySelector('.op').value,
+        b: tb === 'num' ? { t: 'num', v: d.querySelector('.nb').value } : { t: tb, n: d.querySelector('.nb').value } };
+    });
+  }
+  function save(bt) {
+    var spec = { name: $('bName').value, symbol: $('bSym').value, side: $('bSide').value, entry: read('entry'), exit: read('exit'), pct_of_equity: $('bPct').value,
+      stop_loss_pct: $('bStop').value, take_profit_pct: $('bTgt').value, trailing_stop_pct: $('bTrail').value,
+      sessions: [].filter.call(document.querySelectorAll('.bs'), function (c) { return c.checked; }).map(function (c) { return c.value; }) };
+    $('bMsg').textContent = 'Checking…';
+    post('/build', { algo: $('algo').value, spec: spec, backtest: bt }).then(function (d) {
+      if (d.yaml) { $('bYaml').style.display = ''; $('bYaml').textContent = d.yaml; }
+      if (d.error) { $('bMsg').innerHTML = '<span class="err">' + esc(d.error) + '</span>'; return; }
+      $('bMsg').innerHTML = 'Saved as <b>' + esc(d.file) + '</b> in the ' + esc($('algo').value) + ' algo\'s strategies.' +
+        (d.backtest === 'started' ? ' Backtest started: see the algo tab.' : d.backtest ? ' Backtest: ' + esc(d.backtest) : ' Run backtest on the algo tab, or the Robustness test here.');
+      loadStrats();
+    });
+  }
+  $('bSave').onclick = function () { save(false); }; $('bSaveBt').onclick = function () { save(true); };
+
+  // ---- robustness
+  function loadStrats() {
+    return getJ(API + '?algo=' + $('algo').value).then(function (d) {
+      var v = $('rStrat').value;
+      $('rStrat').innerHTML = (d.strategies || []).map(function (s) { return '<option' + (s === v ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
+      drawRob(d.robust); loadKnobs();
+    });
+  }
+  function loadKnobs() {
+    if (!$('rStrat').value) return;
+    getJ(API + '/knobs?algo=' + $('algo').value + '&strategy=' + encodeURIComponent($('rStrat').value)).then(function (d) {
+      var ks = d.knobs || [], o = ks.map(function (k) { return '<option value="' + esc(k.path) + '">' + esc(k.label) + ' (' + k.value + ')</option>'; }).join('');
+      $('rK1').innerHTML = o; $('rK2').innerHTML = '<option value="">(only one)</option>' + o; if (ks.length > 1) $('rK2').selectedIndex = 2;
+    });
+  }
+  function color(v) { if (v == null) return '#2a3d52'; var a = Math.min(1, Math.abs(v) / 5); return v >= 0 ? 'rgba(57,224,122,' + (0.25 + 0.75 * a) + ')' : 'rgba(255,107,94,' + (0.25 + 0.75 * a) + ')'; }
+  var poll = null;
+  function drawRob(s) {
+    clearTimeout(poll);
+    if (!s) { $('rOut').innerHTML = ''; return; }
+    if (s.running) { $('rOut').innerHTML = '<div class="box">Running on <b>' + esc(s.strategy) + '</b>: ' + esc(s.step || '') + '…</div>'; poll = setTimeout(function () { getJ(API + '?algo=' + $('algo').value).then(function (d) { drawRob(d.robust); }); }, 5000); return; }
+    if (s.error) { $('rOut').innerHTML = '<div class="box err">' + esc(s.strategy) + ': ' + esc(s.error) + '</div>'; return; }
+    var g = s.grid || {}, h = '<div class="box"><b>' + esc(s.strategy) + '</b> <span class="muted">' + (s.bars || 0) + ' minutes, ' + esc(s.from || '') + ' to ' + esc(s.to || '') + ' (UTC)</span>' +
+      '<div class="kpis"><div class="kpi"><div class="l">Base run</div><div class="v ' + ((s.base || {}).ret >= 0 ? 'good' : 'bad') + '">' + pc((s.base || {}).ret) + '</div><div class="s">' + ((s.base || {}).trades || 0) + ' trades, worst drop ' + pc((s.base || {}).dd) + '</div></div>' +
+      '<div class="kpi"><div class="l">Grid made money</div><div class="v">' + (g.share_up == null ? '–' : g.share_up + '%') + '</div><div class="s">of the settings tried</div></div></div>';
+    if (g.cells) {
+      h += '<h2>Settings grid: ' + esc(g.x.label) + ' across' + (g.y ? ', ' + esc(g.y.label) + ' down' : '') + '</h2><div class="tw"><table class="grid5"><tr><th></th>' +
+        g.steps.map(function (f) { return '<th>' + (+(g.x.value * f).toFixed(3)) + '</th>'; }).join('') + '</tr>' +
+        g.cells.map(function (row, i) { return '<tr><th>' + (g.y ? +(g.y.value * g.steps[i]).toFixed(3) : '') + '</th>' + row.map(function (c, j) {
+          var base = g.steps[j] === 1 && (!g.y || g.steps[i] === 1);
+          return '<td style="background:' + color(c.ret) + ';' + (base ? 'outline:2px solid #fff;' : '') + '" title="' + esc(c.error || ((c.trades || 0) + ' trades, worst drop ' + pc(c.dd))) + '">' + pc(c.ret) + '</td>'; }).join('') + '</tr>'; }).join('') +
+        '</table></div><p class="muted">White box = the file\'s own settings.</p>';
+    }
+    var w = s.walk;
+    if (w) h += '<h2>Walk-forward</h2><p class="muted">Tuned on data before ' + esc(w.cut) + ' (UTC): best setting made ' + pc((w.train_best || {}).ret) +
+      ' there. On the newer data it never saw: <b style="color:#fff">' + pc((w.test_best || {}).ret) + '</b> (the file\'s own settings: ' + pc((w.test_base || {}).ret) + '). ' +
+      (w.test_best && w.train_best && w.test_best.ret < 0 && w.train_best.ret > 0 ? 'It stopped working on new data: a sign of curve-fitting.' : '') + '</p>';
+    var m = s.mc;
+    if (m) h += '<h2>Monte Carlo</h2><p class="muted">' + (m.note ? esc(m.note) : 'From ' + m.trades + ' trades reshuffled 1,000 times: middle result ' + pc(m.ret_p50) + ', 9 in 10 between ' + pc(m.ret_p5) + ' and ' + pc(m.ret_p95) +
+      ', ended down ' + m.lose_pct + '% of the time. Typical worst drop ' + pc(m.dd_p50) + ' (1 in 20: ' + pc(m.dd_p5) + '). Longest losing streak: typically ' + m.streak_p50 + ' trades in a row, 1 in 20: ' + m.streak_p95 + '.') + '</p>';
+    $('rOut').innerHTML = h + '</div>';
+  }
+  $('rStrat').onchange = loadKnobs;
+  $('rGo').onclick = function () {
+    post('/robust', { algo: $('algo').value, strategy: $('rStrat').value, knobs: [$('rK1').value, $('rK2').value].filter(Boolean) }).then(function (d) {
+      if (d.error) { $('rOut').innerHTML = '<div class="box err">' + esc(d.error) + '</div>'; return; }
+      drawRob({ running: true, strategy: $('rStrat').value, step: 'Starting' });
+    });
+  };
+  $('algo').onchange = loadStrats;
+  $('mode').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    [].forEach.call($('mode').children, function (x) { x.classList.toggle('on', x === b); });
+    $('build').style.display = b.dataset.m === 'build' ? '' : 'none'; $('rob').style.display = b.dataset.m === 'rob' ? '' : 'none';
+  });
+  var m = /[?&]algo=(webull|ibkr)/.exec(location.search); if (m) $('algo').value = m[1];
+  if (/[?&]rob=1/.test(location.search)) document.querySelector('[data-m="rob"]').click();
+  loadStrats();
+})();
+</script>
+</body>
+</html>

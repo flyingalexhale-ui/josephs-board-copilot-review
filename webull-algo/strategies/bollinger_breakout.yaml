@@ -1,0 +1,29 @@
+# Breakout: buy when price closes above the upper Bollinger Band (momentum breaking out of
+# its recent range), exit when price falls back below the middle band. Multi-column
+# indicators (bollinger, macd, stochastic) get their sub-columns named "<as-or-kind>_<sub>" --
+# here that's bollinger_upper / bollinger_mid / bollinger_lower, since no 'as' is given.
+name: "Bollinger(20, 2std) breakout"
+symbol: "TSLA"
+
+indicators:
+  - kind: bollinger
+    period: 20
+    num_std: 2.0
+
+entry:
+  side: buy
+  when: "close > bollinger_upper"
+
+exit:
+  when: "close < bollinger_mid"
+
+position_size:
+  pct_of_equity: 15
+
+risk:
+  stop_loss_pct: 6
+  take_profit_pct: 15
+  max_order_notional_usd: 15000
+
+max_open_positions: 1
+confirm_live: false

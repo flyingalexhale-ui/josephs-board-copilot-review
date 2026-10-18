@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · Recap</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- Recap tab: the "since the close" videos (after-hours, overnight, pre-market) made by
+     bin/make_recap.py, listed and started through /api/recap. gateway/recap.py -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#2f7a44;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:980px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:18px 4px 8px;}
+  #when{font-size:12px;color:var(--dim);} #when b{color:var(--white);}
+  button{font:inherit;font-size:12px;color:var(--white);border:1px solid #1e5631;background:#1e5631;border-radius:4px;padding:7px 10px;font-weight:700;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:default;}
+  button.wk{background:transparent;border-color:#8a6a1e;color:var(--amber);}
+  .tagw{color:var(--amber);font-size:10px;border:1px solid #8a6a1e;border-radius:3px;padding:0 4px;margin-right:6px;}
+  video{display:block;width:100%;max-height:70vh;background:#000;border:1px solid var(--line);border-radius:6px;margin-top:10px;}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 4px;}
+  #msg{color:var(--dim);font-size:12px;} #msg.err{color:#ff8a80;}
+  .list a{display:flex;justify-content:space-between;gap:10px;padding:8px 6px;border-bottom:1px solid var(--line);color:var(--white);text-decoration:none;}
+  .list a.on{color:var(--cyan);} .list a span{color:var(--dim);}
+  details{margin:10px 4px;} summary{cursor:pointer;color:var(--dim);}
+  pre{white-space:pre-wrap;font:inherit;font-size:12px;line-height:1.55;color:#cfd8e3;}
+  .note{font-size:11px;color:var(--dim);margin:6px 4px;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>RECAP</h1><div id="when">Loading…</div></header>
+  <video id="vid" controls playsinline preload="metadata"></video>
+  <div class="row"><button id="make">Make one now</button><button id="makew" class="wk">Make weekly one now</button><span id="msg"></span></div>
+  <details><summary>What the voice says</summary><pre id="script"></pre></details>
+  <h2>Recent recaps</h2>
+  <div class="list" id="list"><div class="note">None yet.</div></div>
+  <p class="note">A 2-3 minute video of everything since the last 4 pm close: after-hours (4-8 pm, SMART),
+    overnight (8 pm-3:50 am, Blue Ocean, IBKR's overnight venue) and pre-market (4-9:30 am, SMART), then where
+    things stand. Made by the Mac from the board's own price record and sent to your phone every trading day
+    at <b id="t">8:05</b> am New York time (change JB_RECAP_TIME in settings.env). The last 14 are kept.
+    It also gives the <b>market weather</b>: each sector fund gets a word from its move since the close
+    (sunny up 1% or more, partly sunny, cloudy = about flat, rainy, stormy down 1% or more).</p>
+  <p class="note"><b class="tagw">WEEK</b>The <b>weekly recap</b> comes every Friday at <b id="tw">8:15 pm</b> New York time
+    (JB_WEEKLY_TIME in settings.env; if the Mac was asleep it catches up until Sunday 6 pm): the week's best and worst,
+    the market weather for the week, how the Picks and your own trades did, the best paper algo strategy, and next
+    week's earnings for your stocks and the big economic events. The last 8 are kept.</p>
+</div>
+<script>
+(function(){
+  var vid = document.getElementById('vid'), list = document.getElementById('list'), msg = document.getElementById('msg');
+  var mk = document.getElementById('make'), mkw = document.getElementById('makew'), current = null, data = null, wasMaking = false;
+  function api(body){
+    var o = body ? {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {credentials: 'same-origin', cache: 'no-store'};
+    return fetch('/api/recap', o).then(function(r){
+      if(r.status === 401){ (window.top || window).location.href = '/login?next=/'; throw new Error('login'); }
+      return r.json();
+    });
+  }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function len(s){ return s ? Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2) : ''; }
+  function pick(r){
+    current = r.file;
+    vid.src = '/api/recap/video?f=' + encodeURIComponent(r.file);
+    document.getElementById('when').innerHTML = '<b>' + esc(r.title) + '</b> ' + esc(len(r.seconds));
+    document.getElementById('script').textContent = r.script || '';
+    draw();
+  }
+  function draw(){
+    var rs = (data && data.recaps) || [];
+    list.innerHTML = rs.length ? rs.map(function(r, i){
+      return '<a href="#" data-i="' + i + '" class="' + (r.file === current ? 'on' : '') + '"><b style="font-weight:400">' + (r.weekly ? '<b class="tagw">WEEK</b>' : '') + esc(r.title) + '</b><span>' + esc(len(r.seconds)) + '</span></a>';
+    }).join('') : '<div class="note">None yet. Press "Make one now", or wait for the morning one.</div>';
+  }
+  list.addEventListener('click', function(e){
+    var a = e.target.closest('a'); if(!a) return; e.preventDefault();
+    pick(data.recaps[+a.dataset.i]);
+  });
+  function refresh(){
+    return api().then(function(d){
+      data = d;
+      document.getElementById('t').textContent = d.time;
+      if(d.weekly_time) document.getElementById('tw').textContent = d.weekly_time;
+      if(d.recaps.length && (!current || (wasMaking && !d.making))) pick(d.recaps[0]);
+      else if(!d.recaps.length) document.getElementById('when').textContent = 'No recap yet';
+      draw();
+      mk.disabled = d.making; mkw.disabled = d.making;
+      msg.className = d.error ? 'err' : '';
+      msg.textContent = d.making ? 'Making a recap… (takes a few minutes on the Mac' + (d.last_log ? ': ' + d.last_log.replace(/^\S+ \S+ /, '') : '') + ')'
+                      : d.error ? 'Last try failed: ' + d.error.error : '';
+      wasMaking = d.making;
+    }).catch(function(){});
+  }
+  function start(action){
+    mk.disabled = mkw.disabled = true;
+    api({action: action}).then(function(r){ if(!r.ok){ msg.textContent = r.error; } wasMaking = true; refresh(); });
+  }
+  mk.addEventListener('click', function(){ start('make'); });
+  mkw.addEventListener('click', function(){ start('make-weekly'); });
+  refresh();
+  setInterval(function(){ if(!document.hidden && (wasMaking || !data)) refresh(); }, 5000);
+  setInterval(function(){ if(!document.hidden) refresh(); }, 60000);
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+</body>
+</html>

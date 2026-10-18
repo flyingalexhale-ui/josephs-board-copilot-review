@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · Mover Scanner</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--text:#f2f2f2;--dim:#6f8aa3;
+    --up:#00ff41;--down:#ff3b30;--flag:#ffb648;--accent:#00e5ff;--amber:#2f7a44;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;-webkit-font-smoothing:antialiased;}
+  body{padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);}
+  header{padding:12px 16px;border-bottom:1px solid var(--line-bright);display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#020a14;}
+  header h1{font-size:15px;margin:0;letter-spacing:.06em;}
+  #status{font-size:12px;color:var(--dim);} #status.live{color:var(--up);} #status.dead{color:var(--down);}
+  .meta{font-size:11px;color:var(--dim);margin-left:auto;}
+  .adv{display:none;gap:8px;align-items:center;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line-bright);flex-wrap:wrap;}
+  .adv.open{display:flex;}
+  .adv input{background:#000;border:1px solid var(--line-bright);color:var(--text);border-radius:5px;padding:6px 8px;font:inherit;font-size:12px;}
+  button{background:var(--amber);border:none;color:#fff;font:inherit;font-weight:700;border-radius:5px;padding:6px 12px;font-size:12px;cursor:pointer;}
+  button.ghost{background:transparent;border:1px solid var(--line-bright);color:var(--dim);}
+  .modes{display:inline-flex;border:1px solid var(--line-bright);border-radius:6px;overflow:hidden;}
+  .modes button{background:transparent;color:var(--dim);border-radius:0;padding:5px 12px;}
+  .modes button.on{background:var(--amber);color:#fff;}
+  .modes button:disabled{cursor:default;}
+  #notice{display:none;padding:8px 16px;background:#2a1d05;color:var(--flag);font-size:12px;border-bottom:1px solid var(--line-bright);}
+  main{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);}
+  @media (max-width:820px){main{grid-template-columns:1fr;}}
+  section{overflow:auto;}
+  #board{border-right:1px solid var(--line-bright);max-height:calc(100vh - 54px);}
+  #events{padding:10px 14px;max-height:calc(100vh - 54px);}
+  @media (max-width:820px){#board,#events{max-height:none;border-right:0;} #board{border-bottom:1px solid var(--line-bright);}}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{position:sticky;top:0;background:var(--panel);text-align:right;padding:8px 10px;color:var(--dim);font-weight:500;border-bottom:1px solid var(--line-bright);cursor:pointer;user-select:none;white-space:nowrap;}
+  th.sorted{color:var(--accent);}
+  th:first-child,td:first-child{text-align:left;}
+  td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  tr.flagged td{background:rgba(255,182,72,.09);}
+  .sym{font-weight:700;color:#8fd1a8;}
+  .up{color:var(--up);} .down{color:var(--down);}
+  .badge{display:inline-block;margin-left:6px;background:var(--flag);color:#241800;border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700;}
+  #events h2{font-size:12px;color:var(--dim);font-weight:600;margin:4px 0 10px;letter-spacing:.06em;text-transform:uppercase;}
+  .ev{border:1px solid var(--line-bright);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--panel);}
+  .ev-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+  .ev-sym{font-weight:700;font-size:14px;color:#8fd1a8;} .ev-time{font-size:11px;color:var(--dim);}
+  .ev-ohlc{font-size:11px;color:var(--dim);margin-bottom:6px;}
+  .ev ul{margin:0;padding-left:16px;font-size:12px;} .ev li{margin-bottom:3px;}
+  .r-price_delta{color:var(--accent);} .r-volume_surge{color:var(--flag);} .r-range_expansion{color:#c792ea;} .r-cumulative_delta{color:#7fd1b9;} .r-breakout_volume,.r-squeeze_release{color:#5dff8f;} .r-vwap_cross,.r-three_strong{color:#7fd6ff;} .r-high_on_falling_volume,.r-fade{color:#ffc400;}
+  .empty{color:var(--dim);font-size:12px;padding:12px 6px;}
+  #picksBtn .n{display:inline-block;margin-left:5px;background:var(--flag);color:#241800;border-radius:8px;padding:0 6px;font-size:10px;}
+  #picksView{display:none;padding:12px 16px 24px;}
+  body.picks main{display:none;} body.picks #picksView{display:block;}
+  .pk-warn{border:1px solid #5a4410;background:#2a1d05;color:var(--flag);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.45;margin-bottom:10px;}
+  .pk-meta{font-size:11px;color:var(--dim);margin-bottom:12px;line-height:1.5;}
+  .pk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;align-items:start;}
+  @media (max-width:520px){.pk-grid{grid-template-columns:1fr;} #picksView{padding:10px 10px 20px;}}
+  .pk{border:1px solid var(--line-bright);border-left:4px solid var(--dim);border-radius:8px;background:var(--panel);padding:10px 12px;}
+  .pk.lean-up{border-left-color:var(--up);} .pk.lean-down{border-left-color:var(--down);} .pk.lean-mixed,.pk.lean-watch{border-left-color:var(--flag);}
+  .pk-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .pk-sym{font-weight:700;font-size:16px;color:#8fd1a8;} .pk-px{font-size:12px;}
+  .pk-lean{margin-left:auto;font-size:11px;font-weight:700;border-radius:4px;padding:1px 6px;}
+  .pk-lean.up{background:rgba(0,255,65,.12);color:var(--up);} .pk-lean.down{background:rgba(255,59,48,.14);color:var(--down);}
+  .pk-lean.mixed,.pk-lean.watch{background:rgba(255,182,72,.14);color:var(--flag);}
+  .pk-sum{font-size:12px;margin:6px 0 4px;}
+  .pk ul{list-style:none;margin:6px 0 0;padding:0;}
+  .pk li{border-top:1px solid var(--line);padding:7px 0 6px;font-size:12px;line-height:1.45;}
+  .pk-t{font-weight:700;} .pk-t.up{color:var(--up);} .pk-t.down{color:var(--down);} .pk-t.flat{color:var(--flag);}
+  .pk-learn{color:var(--dim);font-size:11.5px;margin-top:3px;}
+  .pk-learn b{color:#9fb6ca;font-weight:600;}
+  .pk-ctx{border-top:1px solid var(--line);padding-top:7px;margin-top:2px;font-size:11.5px;color:#cfe0ee;line-height:1.45;}
+  .pk-note{font-size:11.5px;color:var(--flag);margin-top:5px;line-height:1.45;}
+  .pk-check{font-size:11px;color:var(--dim);margin-top:7px;}
+  .pk-sec{grid-column:1/-1;font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:6px 0 0;}
+  .pk-sec span{text-transform:none;letter-spacing:0;font-weight:400;}
+  .pk-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .pk-bar .pk-meta{margin:0;flex:1 1 260px;}
+  .pk-live{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--up);margin-right:5px;vertical-align:1px;animation:pkpulse 1.6s ease-in-out infinite;}
+  @keyframes pkpulse{50%{opacity:.25;}}
+  #pkCopy{font:inherit;font-size:12px;background:var(--panel);color:#cfe0ee;border:1px solid var(--line-bright);border-radius:6px;padding:6px 10px;cursor:pointer;}
+  #pkCopy:hover{border-color:#8fd1a8;color:#fff;}
+  .pk-tf{display:inline-flex;border:1px solid var(--line-bright);border-radius:6px;overflow:hidden;}
+  .pk-tf button{font:inherit;font-size:12px;background:var(--panel);color:var(--dim);border:0;padding:6px 10px;cursor:pointer;}
+  .pk-tf button.on{background:#164060;color:#fff;}
+  .pk-fams{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;}
+  .pk-fam{font-size:10px;border-radius:4px;padding:0 5px;border:1px solid var(--line-bright);color:var(--dim);}
+  .pk-fam.up{border-color:rgba(0,255,65,.4);color:var(--up);} .pk-fam.down{border-color:rgba(255,59,48,.45);color:var(--down);}
+  .pk-ctx div+div{margin-top:3px;}
+  .sess-chips{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 8px;}
+  .sess-chips button{font:inherit;font-size:11px;background:transparent;border:1px solid var(--line-bright);color:var(--dim);border-radius:4px;padding:3px 8px;cursor:pointer;}
+  .sess-chips button.on{background:var(--line-bright);color:#fff;}
+  .ev-vol{font-size:11px;color:var(--dim);margin-top:2px;} .ev-vol b{color:#cfe0ee;}
+  .pk-ext{font-size:12px;margin:4px 0;color:#c9b8ff;} .pk-earn{font-size:11.5px;color:#ffc400;margin-top:4px;} .pk-news{font-size:11.5px;color:#cfe0ee;margin-top:3px;}
+  .pk-box{grid-column:1/-1;border:1px solid var(--line-bright);border-radius:8px;background:var(--panel);padding:8px 12px;font-size:12px;line-height:1.6;}
+  .pk-box b{color:#ffc400;} .pk-box .dim{color:var(--dim);}
+  @media (max-width:520px){ td:nth-child(6),th:nth-child(6),td:nth-child(7),th:nth-child(7){display:none;} td,th{padding:7px 6px;} }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">MOVER SCANNER</h1>
+  <span class="modes"><button id="modeEtfs" data-mode="etfs">ETFs</button><button id="modeStocks" data-mode="stocks">Stocks</button></span>
+  <span class="modes"><button id="moversBtn">Movers</button><button id="picksBtn">Picks</button></span>
+  <span id="status" class="dead">connecting…</span>
+  <span class="meta" id="meta"></span>
+  <button class="ghost" id="advBtn">Connection</button>
+</header>
+<div class="adv" id="adv">
+  <input id="wsUrl" size="30" placeholder="(automatic)"><input id="wsToken" size="14" type="password" placeholder="token (direct only)">
+  <button id="saveBtn">Save</button>
+</div>
+<div id="notice"></div>
+<main>
+  <section id="board"><table>
+    <thead><tr><th data-k="symbol">Symbol</th><th data-k="last_price">Last</th><th data-k="vs_close" title="Change since the last 4:00 pm ET close (includes after-hours, overnight and pre-market)">Vs close</th><th data-k="window_pct">Window %</th>
+      <th data-k="window_volume">Window vol</th><th data-k="n_baseline_windows">Baseline</th><th data-k="last_source">Feed</th><th data-k="last_ts">Updated</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="8" class="empty">Waiting for the scanner…</td></tr></tbody></table></section>
+  <section id="events"><h2>Recent flags</h2><div class="sess-chips" id="sessChips"></div><div id="evlist"><div class="empty">Nothing flagged yet.</div></div></section>
+</main>
+<div id="picksView">
+  <div class="pk-warn"><b>For research only. Not financial advice.</b> These are patterns in each symbol's price chart (daily, or 5- and 1-minute bars), worked out by simple rules on your Mac. They are ideas to look into, not tips to buy or sell. Chart patterns often fail. Before deciding anything, read the news and, for a stock, check the next earnings date.</div>
+  <div class="pk-bar"><span class="pk-tf" id="pkTf" title="Which chart the picks look at: daily bars, or 5-minute / 1-minute bars (every session, overnight too)"><button data-tf="daily">Daily</button><button data-tf="5">5 min</button><button data-tf="1">1 min</button></span><div class="pk-meta" id="pkMeta">Waiting for the scanner…</div><button id="pkCopy" title="Copies these picks as text, to paste into the Claude app and ask about them">Copy for Claude</button></div>
+  <textarea id="pkText" readonly style="display:none;width:100%;height:160px;margin-bottom:12px;background:var(--panel);color:#cfe0ee;border:1px solid var(--line-bright);border-radius:6px;font:inherit;font-size:11px;"></textarea>
+  <div class="pk-grid" id="pkList"></div>
+</div>
+<script>
+(function(){
+  'use strict';
+  window.__evAll = [];
+  var rows = {}, events = window.__evAll, flaggedUntil = {}, sortKey = 'window_pct', sortDir = -1, ws = null, delay = 1000, paused = false;
+  var mode = '', switching = '', picks = null, picksMin = {}, tfView = {'1': '1', '5': '5'}[ls('pk_tf')] || 'daily', view = ls('view') === 'picks' ? 'picks' : 'movers';
+  var NAMES = {etfs: 'ETFs', stocks: 'stocks'};
+  window.__scan = function(){ return {rows: rows, picks: picks, mode: mode}; };   // jb-desk: Ask Claude box on this page
+  var $ = function(id){ return document.getElementById(id); };
+  function ls(k, v){ try{ if(v === undefined) return localStorage.getItem('jb_scanner_' + k) || ''; if(v) localStorage.setItem('jb_scanner_' + k, v); else localStorage.removeItem('jb_scanner_' + k); }catch(e){ return ''; } }
+  function autoUrl(){ return /^https?:$/.test(location.protocol) ? (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/scanner' : 'ws://localhost:8767'; }
+  $('wsUrl').value = ls('url'); $('wsToken').value = ls('token'); $('wsUrl').placeholder = autoUrl();
+  $('advBtn').onclick = function(){ $('adv').classList.toggle('open'); };
+  $('saveBtn').onclick = function(){ ls('url', $('wsUrl').value.trim()); ls('token', $('wsToken').value.trim()); $('adv').classList.remove('open'); if(ws) ws.close(); };
+
+  function showMode(){
+    $('title').textContent = mode === 'stocks' ? 'STOCK MOVER SCANNER' : mode === 'etfs' ? 'ETF MOVER SCANNER' : 'MOVER SCANNER';
+    ['etfs', 'stocks'].forEach(function(m){
+      var b = $(m === 'etfs' ? 'modeEtfs' : 'modeStocks');
+      b.classList.toggle('on', (switching || mode) === m);
+      b.disabled = !!switching || !ws || ws.readyState !== 1;
+    });
+  }
+  function notice(text){ $('notice').textContent = text || ''; $('notice').style.display = text ? 'block' : 'none'; }
+  function setMode(m){
+    if(m === mode || switching || !ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify({type: 'set_mode', mode: m}));
+  }
+  function showView(v){
+    view = v; ls('view', v === 'picks' ? 'picks' : null);
+    document.body.classList.toggle('picks', v === 'picks');
+    $('moversBtn').classList.toggle('on', v !== 'picks'); $('picksBtn').classList.toggle('on', v === 'picks');
+  }
+  $('moversBtn').onclick = function(){ showView('movers'); };
+  $('picksBtn').onclick = function(){ showView('picks'); };
+  showView(view);
+
+  var LEAN = {up: '▲ Leaning up', down: '▼ Leaning down', mixed: '◆ Mixed', watch: '● Heads-up'};
+  var SRC = {ibkr: 'IBKR', webull: 'Webull'};
+  function el(tag, cls, text){ var e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; }
+  function dailyPicks(){ return picks; }
+  function curPicks(){ return tfView === 'daily' ? picks : (picksMin[tfView] || null); }
+  function tfWord(){ return tfView === 'daily' ? 'daily charts' : tfView + '-minute charts'; }
+  function famName(f){ var P = curPicks(); return ((P && P.families) || {})[f] || f; }
+  function showTf(){ [].forEach.call($('pkTf').children, function(b){ b.classList.toggle('on', b.dataset.tf === tfView); }); }
+  [].forEach.call($('pkTf').children, function(b){ b.onclick = function(){ tfView = b.dataset.tf; ls('pk_tf', tfView === 'daily' ? null : tfView); showTf(); drawPicks(); }; });
+  showTf();
+  function picksText(){
+    var picks = curPicks(), list = (picks && picks.picks) || [];
+    var t = ['Technical picks from my market scanner (' + NAMES[mode] + ', ' + tfWord() + '), ' + new Date().toLocaleString() + '.',
+      'These come from simple rules, not advice. Please help me research them: for each, what could explain the pattern ' +
+      '(recent news, earnings, sector moves), what would confirm or contradict it, and what risks I should know about. ' +
+      'Explain in plain English; I am new to technical analysis.', ''];
+    list.forEach(function(p){
+      t.push(p.symbol + ' $' + p.price.toFixed(2) + ' (' + (p.change_pct >= 0 ? '+' : '') + p.change_pct.toFixed(2) + (tfView === 'daily' ? '% today) - ' : '% vs. the 4 pm close) - ') + (LEAN[p.lean] || p.lean).replace(/^\S+ /, ''));
+      t.push('  ' + p.summary);
+      if(p.ext) t.push('  Now ' + p.ext.price.toFixed(2) + ' (' + p.ext.session + '), ' + (p.ext.vs_close >= 0 ? '+' : '') + p.ext.vs_close.toFixed(2) + '% vs the close');
+      if(p.earnings && p.earnings.date) t.push('  Next earnings: ' + p.earnings.date + (p.earnings.when ? ', ' + p.earnings.when : ''));
+      p.signals.forEach(function(s){ t.push('  - ' + s.title + ': ' + s.why); });
+      (p.context || []).forEach(function(c){ t.push('  * ' + c); });
+      if(p.note) t.push('  Note: ' + p.note);
+      t.push('');
+    });
+    return t.join('\n');
+  }
+  function copyText(text, done){
+    function fallback(){
+      var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0'; document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, text.length);
+      var ok = false; try { ok = document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta); done(ok);
+    }
+    if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(text).then(function(){ done(true); }, fallback); }
+    else fallback();
+  }
+  $('pkCopy').onclick = function(){
+    var b = this, picks = curPicks();
+    if(!picks || !(picks.picks || []).length){ b.textContent = 'Nothing to copy yet'; setTimeout(function(){ b.textContent = 'Copy for Claude'; }, 2000); return; }
+    copyText(picksText(), function(ok){
+      b.textContent = ok ? 'Copied! Paste it into Claude' : 'Select the text below and copy it';
+      var box = $('pkText'); box.style.display = ok ? 'none' : 'block';
+      if(!ok){ box.value = picksText(); box.focus(); box.select(); }
+      setTimeout(function(){ b.textContent = 'Copy for Claude'; }, 3000);
+    });
+  };
+  function drawPicks(){
+    var box = $('pkList'), meta = $('pkMeta'), n = $('picksBtn');
+    var daily = dailyPicks(), picks = curPicks(), minute = tfView !== 'daily';
+    var list = (picks && picks.picks) || [];
+    n.innerHTML = ''; n.appendChild(document.createTextNode('Picks'));
+    if(list.length){ n.appendChild(el('span', 'n', String(list.length))); }
+    box.innerHTML = '';
+    if(switching){ meta.textContent = 'Switching to ' + NAMES[switching] + '… picks are worked out again about a minute after the scanner restarts.'; return; }
+    if(!picks){ meta.textContent = minute ? 'Working out minute picks: they start a few seconds after the scanner, and fill in as 1-minute history loads from IBKR.'
+      : 'Working out picks: fetching a year of daily prices for each symbol. This takes about a minute after the scanner starts.'; return; }
+    if(!picks.updated){ meta.textContent = picks.status || 'Working out picks…'; return; }
+    var src = Object.keys(picks.sources || {}).map(function(k){ return (SRC[k] || k) + ' ' + picks.sources[k]; }).join(', ');
+    meta.innerHTML = '';
+    if(picks.live) meta.appendChild(el('span', 'pk-live'));
+    if(minute) meta.appendChild(document.createTextNode((picks.live ? 'Live: rechecked every few seconds, in every session (now ' + picks.session + '). ' : '') +
+      'Checked ' + picks.n_live + ' of ' + picks.n_symbols + ' ' + NAMES[mode] + ' with recent prices for 10 kinds of signal on ' + tfWord() +
+      '. Updated ' + new Date(picks.updated).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit', second: '2-digit'}) + '. Strongest first. The % next to the price is vs. the 4 pm close.' +
+      (picks.status ? ' ' + picks.status : '')));
+    else meta.appendChild(document.createTextNode((picks.live ? 'Live: rechecked every few seconds as prices move. ' : 'Market closed: based on the last close. ') +
+      'Checked ' + picks.n_symbols + ' ' + NAMES[mode] + ' for 19 kinds of signal on their daily charts, plus overnight setups outside regular hours' +
+      (src ? ' (history from ' + src + ')' : '') + '. Updated ' + new Date(picks.updated).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit', second: '2-digit'}) +
+      '. Strongest first.' +
+      (picks.n_history < picks.n_symbols ? ' No price history yet for ' + (picks.n_symbols - picks.n_history) + ' of them.' : '') +
+      (picks.status ? ' ' + picks.status : '')));
+    var tr = minute ? null : picks.track, up = (daily && daily.upcoming) || [];
+    if(tr){
+      var tb = el('div', 'pk-box');
+      tb.innerHTML = '<b>Track record</b> ' + (tr.scored ? '· of ' + tr.scored + ' past up/down picks, <b style="color:#cfe0ee">' + Math.round(tr.right / tr.scored * 100) + '%</b> moved the way they leaned by the next day\'s close (average ' +
+        (tr.avg >= 0 ? '+' : '') + tr.avg.toFixed(2) + '% in the leaned direction). ' +
+        '<span class="dim">Best signal kinds: ' + Object.keys(tr.kinds).filter(function(k){ return tr.kinds[k].n >= 5; }).sort(function(a, b){ return tr.kinds[b].right / tr.kinds[b].n - tr.kinds[a].right / tr.kinds[a].n; }).slice(0, 4)
+          .map(function(k){ return k + ' ' + Math.round(tr.kinds[k].right / tr.kinds[k].n * 100) + '% (' + tr.kinds[k].n + ')'; }).join(', ') + '</span>'
+        : '<span class="dim">· picks are saved at 3:55 pm each weekday and scored the next day. ' + (tr.days ? tr.days + ' day(s) saved so far, waiting for the next close.' : 'Nothing saved yet.') + '</span>');
+      box.appendChild(tb);
+    }
+    if(up.length){
+      var ub = el('div', 'pk-box');
+      ub.innerHTML = '<b>Upcoming earnings</b> ' + up.slice(0, 20).map(function(x){ return '<span style="margin-right:12px">' + x.symbol + ' ' + x.date + (x.when ? ' (' + x.when + ')' : '') + '</span>'; }).join('');
+      box.appendChild(ub);
+    } else if(daily && daily.earnings_status) box.appendChild(el('div', 'pk-box dim', daily.earnings_status));
+    if(!list.length){ box.appendChild(el('div', 'empty', minute ? 'No minute signals right now. They come and go within minutes; this rechecks every few seconds.'
+      : 'No signals right now. That is normal on quiet days; check back later.')); return; }
+    var seen = {}, lastSec = '';
+    list.forEach(function(p){
+      var sec = p.agree >= 2 ? 'strong' : 'single';
+      if(sec !== lastSec){
+        lastSec = sec;
+        var hd = el('div', 'pk-sec', sec === 'strong' ? 'Several signals agree ' : 'Single signals ');
+        hd.appendChild(el('span', '', sec === 'strong' ? '(the strongest patterns)' : '(weaker on their own, still worth a glance)'));
+        box.appendChild(hd);
+      }
+      var c = el('div', 'pk lean-' + p.lean);
+      var h = el('div', 'pk-head');
+      h.appendChild(el('span', 'pk-sym', p.symbol));
+      h.appendChild(el('span', 'pk-px ' + (p.change_pct > 0 ? 'up' : p.change_pct < 0 ? 'down' : ''),
+        '$' + p.price.toFixed(2) + '  ' + (p.change_pct >= 0 ? '+' : '') + p.change_pct.toFixed(2) + '%'));
+      h.appendChild(el('span', 'pk-lean ' + p.lean, LEAN[p.lean] || p.lean));
+      c.appendChild(h);
+      if(p.ext) c.appendChild(el('div', 'pk-ext', 'Now $' + p.ext.price.toFixed(2) + ' in ' + ({pre: 'pre-market', post: 'after-hours', overnight: 'the overnight session'}[p.ext.session] || p.ext.session) +
+        ': ' + (p.ext.vs_close >= 0 ? '+' : '') + p.ext.vs_close.toFixed(2) + '% vs. the close'));
+      c.appendChild(el('div', 'pk-sum', p.summary));
+      var fams = el('div', 'pk-fams');
+      (p.up_families || []).forEach(function(f){ fams.appendChild(el('span', 'pk-fam up', '▲ ' + famName(f))); });
+      (p.down_families || []).forEach(function(f){ fams.appendChild(el('span', 'pk-fam down', '▼ ' + famName(f))); });
+      if(fams.firstChild) c.appendChild(fams);
+      var ul = el('ul');
+      p.signals.forEach(function(s){
+        var li = el('li');
+        li.appendChild(el('div', 'pk-t ' + (s.dir > 0 ? 'up' : s.dir < 0 ? 'down' : 'flat'), (s.dir > 0 ? '▲ ' : s.dir < 0 ? '▼ ' : '● ') + s.title));
+        li.appendChild(el('div', '', s.why));
+        // the explanation of each kind of signal is shown on its first card only, to keep the list short
+        var lt = (picks.learn || {})[s.learn];
+        if(lt && !seen[s.learn]){ seen[s.learn] = 1; var l = el('div', 'pk-learn'); l.appendChild(el('b', '', 'What this means: ')); l.appendChild(document.createTextNode(lt)); li.appendChild(l); }
+        ul.appendChild(li);
+      });
+      c.appendChild(ul);
+      if(p.context && p.context.length){ var cx = el('div', 'pk-ctx'); p.context.forEach(function(t){ cx.appendChild(el('div', '', t)); }); c.appendChild(cx); }
+      if(p.note) c.appendChild(el('div', 'pk-note', p.note));
+      if(p.earnings && p.earnings.date) c.appendChild(el('div', 'pk-earn', '📅 Next earnings: ' + p.earnings.date + (p.earnings.when ? ', ' + p.earnings.when : '') + ' (' + p.earnings.label + ')'));
+      if(p.earnings && p.earnings.news) c.appendChild(el('div', 'pk-news', '📰 News in the last hour: ' + p.earnings.news));
+      c.appendChild(el('div', 'pk-check', mode === 'stocks' ? 'To research: recent news, the next earnings date, and the chart on Webull or IBKR.'
+        : 'To research: recent news about what this ETF holds, and the chart on Webull or IBKR.'));
+      box.appendChild(c);
+    });
+  }
+
+  $('modeEtfs').onclick = function(){ setMode('etfs'); };
+  $('modeStocks').onclick = function(){ setMode('stocks'); };
+  function startSwitch(m){
+    switching = m; rows = {}; events = window.__evAll = []; flaggedUntil = {}; picks = null; picksMin = {}; drawEvents(); draw(); drawPicks();
+    notice(''); showMode();
+  }
+
+  function pct(r){ return (r.window_open && r.last_price != null) ? (r.last_price - r.window_open) / r.window_open * 100 : null; }
+  function age(ts){ if(!ts) return '—'; var s = Math.max(0, Math.round((Date.now() - ts)/1000)); return s < 60 ? s + 's' : s < 3600 ? Math.round(s/60) + 'm' : Math.round(s/3600) + 'h'; }
+  function td(tr, text, cls){ var c = document.createElement('td'); c.textContent = text; if(cls) c.className = cls; tr.appendChild(c); return c; }
+
+  var raf = 0;
+  function schedule(){ if(!raf && !paused) raf = requestAnimationFrame(function(){ raf = 0; draw(); }); }
+  function draw(){
+    var list = Object.keys(rows).map(function(k){ var r = rows[k]; r.window_pct = pct(r); return r; });
+    list.sort(function(a, b){
+      var av = a[sortKey], bv = b[sortKey];
+      if(sortKey === 'symbol' || sortKey === 'last_source') return sortDir * String(av || '').localeCompare(String(bv || ''));
+      av = av == null || isNaN(av) ? -Infinity : av; bv = bv == null || isNaN(bv) ? -Infinity : bv;
+      if(sortKey === 'window_pct' || sortKey === 'vs_close'){ av = Math.abs(av); bv = Math.abs(bv); }
+      return sortDir * (av - bv);
+    });
+    var body = $('rows'), frag = document.createDocumentFragment(), now = Date.now();
+    list.forEach(function(r){
+      var tr = document.createElement('tr'); if(flaggedUntil[r.symbol] > now) tr.className = 'flagged';
+      var c = td(tr, r.symbol, 'sym'); if(flaggedUntil[r.symbol] > now){ var b = document.createElement('span'); b.className = 'badge'; b.textContent = 'FLAG'; c.appendChild(b); }
+      td(tr, r.last_price != null ? r.last_price.toFixed(2) : '—');
+      td(tr, r.vs_close == null ? '—' : (r.vs_close >= 0 ? '+' : '') + r.vs_close.toFixed(2) + '%', r.vs_close > 0 ? 'up' : r.vs_close < 0 ? 'down' : '');
+      td(tr, r.window_pct == null ? '—' : (r.window_pct >= 0 ? '+' : '') + r.window_pct.toFixed(2) + '%', r.window_pct > 0 ? 'up' : r.window_pct < 0 ? 'down' : '');
+      td(tr, r.window_volume != null ? Math.round(r.window_volume).toLocaleString() : '—');
+      td(tr, r.n_baseline_windows != null ? String(r.n_baseline_windows) : '—');
+      td(tr, r.last_source || '—'); td(tr, age(r.last_ts));
+      frag.appendChild(tr);
+    });
+    body.innerHTML = ''; if(list.length) body.appendChild(frag); else body.innerHTML = '<tr><td colspan="8" class="empty">' + (switching ? 'Switching to ' + NAMES[switching] + '… the scanner restarts, back in about 10 seconds.' : 'No data yet') + '</td></tr>';
+    document.querySelectorAll('th').forEach(function(th){ th.classList.toggle('sorted', th.dataset.k === sortKey); });
+  }
+  var SESS = [['', 'All sessions'], ['overnight', 'Overnight'], ['pre', 'Pre-market'], ['regular', 'Regular'], ['post', 'After-hours']], sessF = ls('sess');
+  function drawChips(){
+    $('sessChips').innerHTML = SESS.map(function(x){ return '<button data-s="' + x[0] + '" class="' + (x[0] === sessF ? 'on' : '') + '">' + x[1] + '</button>'; }).join('');
+  }
+  $('sessChips').onclick = function(e){ var b = e.target.closest && e.target.closest('button'); if(!b) return; sessF = b.dataset.s; ls('sess', sessF || null); drawChips(); drawEvents(); };
+  drawChips();
+  function drawEvents(){
+    var box = $('evlist'); box.innerHTML = '';
+    var events = sessF ? window.__evAll.filter(function(ev){ return ev.session === sessF; }) : window.__evAll;
+    if(sessF && !events.length && window.__evAll.length){ box.innerHTML = '<div class="empty">No flags from this session yet.</div>'; return; }
+    if(!events.length){ box.innerHTML = '<div class="empty">Nothing flagged yet. Detectors need a few completed windows of history per symbol first.</div>'; return; }
+    events.slice(0, 60).forEach(function(ev){
+      var d = document.createElement('div'); d.className = 'ev';
+      var hd = document.createElement('div'); hd.className = 'ev-head';
+      var s = document.createElement('span'); s.className = 'ev-sym'; s.textContent = ev.symbol;
+      var t = document.createElement('span'); t.className = 'ev-time'; t.textContent = new Date(ev.t_end).toLocaleTimeString() + (ev.session ? ' · ' + ev.session : '');
+      hd.appendChild(s); hd.appendChild(t); d.appendChild(hd);
+      var o = document.createElement('div'); o.className = 'ev-ohlc';
+      o.textContent = 'O ' + ev.open.toFixed(2) + '  H ' + ev.high.toFixed(2) + '  L ' + ev.low.toFixed(2) + '  C ' + ev.close.toFixed(2) + '  · vol ' + Math.round(ev.volume).toLocaleString();
+      d.appendChild(o);
+      if(ev.vol_vs_session != null || ev.vol_vs_hour != null){
+        var v = document.createElement('div'); v.className = 'ev-vol';
+        v.title = 'Session = compared with earlier 5-minute windows from the same session (e.g. other overnight windows): fair for thin overnight trading. ' +
+          'Last hour = compared with the 12 windows just before it, whatever session they were in: right after the open this compares with quiet pre-market, so it looks bigger.';
+        v.innerHTML = 'volume <b>' + (ev.vol_vs_session != null ? ev.vol_vs_session.toFixed(1) + '×' : '—') + '</b> this session\'s normal · <b>' +
+          (ev.vol_vs_hour != null ? ev.vol_vs_hour.toFixed(1) + '×' : '—') + '</b> the last hour (hover for what each means)';
+        d.appendChild(v);
+      }
+      var ul = document.createElement('ul');
+      (ev.fired || []).forEach(function(f){ var li = document.createElement('li'); li.className = 'r-' + f.reason;
+        var b = document.createElement('b'); b.textContent = f.reason.replace(/_/g, ' ') + ': '; li.appendChild(b); li.appendChild(document.createTextNode(f.detail)); ul.appendChild(li); });
+      d.appendChild(ul); box.appendChild(d);
+    });
+  }
+  document.querySelectorAll('th').forEach(function(th){ th.onclick = function(){ var k = th.dataset.k; if(sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = -1; } draw(); }; });
+
+  function connect(){
+    var url = ls('url') || autoUrl(), tok = ls('token');
+    try{ ws = new WebSocket(url); }catch(e){ retry(); return; }
+    ws.onopen = function(){ delay = 1000; if(tok) ws.send(JSON.stringify({type:'auth', token: tok})); $('status').textContent = '● live'; $('status').className = 'live'; showMode(); };
+    ws.onclose = function(ev){
+      $('status').textContent = ev.code === 4001 ? '● token rejected (Connection)' : switching ? '● restarting…' : '● scanner offline — retrying';
+      $('status').className = 'dead'; showMode(); if(switching) delay = 1000; retry();
+    };
+    ws.onmessage = function(msg){
+      var d; try{ d = JSON.parse(msg.data); }catch(e){ return; }
+      if(d.type === 'switching'){ startSwitch(d.mode); return; }
+      if(d.type === 'snapshot'){
+        if(d.switching) return;            // the old scanner, just about to restart
+        mode = d.mode || 'etfs'; switching = ''; showMode(); notice(d.notice);
+        rows = {}; Object.keys(d.latest || {}).forEach(function(s){ rows[s] = d.latest[s]; });
+        (d.symbols || []).forEach(function(s){ if(!rows[s]) rows[s] = {symbol: s}; });
+        events = window.__evAll = d.recent_events || []; drawEvents(); schedule();
+        picks = d.picks || null; picksMin = d.picks_min || {}; drawPicks();
+        $('meta').textContent = (d.symbols || []).length + ' ' + NAMES[mode] + ' · ' + (d.window_minutes || 5) + '-min windows';
+      } else if(d.type === 'quotes'){
+        (d.quotes || []).forEach(function(q){ rows[q.symbol] = Object.assign(rows[q.symbol] || {}, q); }); schedule();
+      } else if(d.type === 'quote'){
+        rows[d.symbol] = Object.assign(rows[d.symbol] || {}, d); schedule();
+      } else if(d.type === 'picks'){
+        picks = d; drawPicks();
+      } else if(d.type === 'picks_min'){
+        picksMin[String(d.tf)] = d; if(tfView === String(d.tf)) drawPicks();
+      } else if(d.type === 'alert'){
+        events.unshift(d); events = window.__evAll = events.slice(0, 200); flaggedUntil[d.symbol] = Date.now() + 5 * 60 * 1000; drawEvents(); schedule();
+      }
+    };
+  }
+  function retry(){ setTimeout(connect, delay); delay = Math.min(delay * 1.6, 15000); }
+  window.addEventListener('message', function(e){ if(e.origin === location.origin && e.data && e.data.type === 'jb-visibility'){ paused = !e.data.visible; if(!paused) schedule(); } });
+  setInterval(schedule, 1000);
+  connect();
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="mdata-scan.js"></script>
+<script src="navbar.js"></script>
+<script src="movers-why.js"></script>
+<script src="scanner-plus.js"></script>
+</body>
+</html>

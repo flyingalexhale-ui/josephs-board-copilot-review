@@ -1,0 +1,38 @@
+# Classic trend-following: go long when the fast SMA crosses above the slow SMA, exit when
+# it crosses back below. "Crosses above" is written as two conditions -- fast > slow now,
+# and the previous relationship doesn't matter to this simple engine, so this is really a
+# STATE rule ("fast is currently above slow"), not a true crossing-edge rule. That's fine for
+# this style of strategy (it just means you're "in" for the whole time fast>slow, not only on
+# the crossing bar) -- see STRATEGY_FORMAT.md for why and how to approximate a real edge-cross
+# if you want one.
+name: "SMA 20/50 crossover (long only)"
+symbol: "AAPL"
+
+indicators:
+  - kind: sma
+    period: 20
+  - kind: sma
+    period: 50
+
+entry:
+  side: buy
+  when: "sma_20 > sma_50"
+
+exit:
+  when: "sma_20 < sma_50"
+
+position_size:
+  pct_of_equity: 25    # use 25% of current equity per entry
+
+risk:
+  stop_loss_pct: 8          # hard stop if price falls 8% from entry, regardless of the rule
+  take_profit_pct: 20       # take profit at +20%, regardless of the rule
+  max_order_notional_usd: 25000   # live-mode only (guards.py); ignored in backtest/paper
+
+max_open_positions: 1
+
+# Two separate switches are required before this strategy can EVER place a real order (see
+# algo/guards.py) -- this file's switch, and an environment variable on the machine running
+# it. Leave this false until you've backtested and paper-traded this specific file and are
+# genuinely ready to risk real money on it.
+confirm_live: false

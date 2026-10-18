@@ -1,0 +1,6 @@
+/* IBM Plex Mono (SIL Open Font License, see OFL-LICENSE.txt), served from this Mac so pages
+   don't depend on Google Fonts and render instantly. */
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url(IBMPlexMono-Regular-Latin1.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url(IBMPlexMono-Medium-Latin1.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url(IBMPlexMono-SemiBold-Latin1.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:700;font-display:swap;src:url(IBMPlexMono-Bold-Latin1.woff2) format('woff2')}

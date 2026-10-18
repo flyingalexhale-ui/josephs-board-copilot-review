@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="FeedTask" extends="Task">
+  <interface>
+    <field id="result" type="assocarray" alwaysNotify="true"/>
+    <field id="tiles" type="assocarray" alwaysNotify="true"/>
+    <field id="problem" type="string" alwaysNotify="true"/>
+    <field id="route" type="string"/>
+    <field id="retry" type="boolean" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/config.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/FeedTask.brs"/>
+</component>

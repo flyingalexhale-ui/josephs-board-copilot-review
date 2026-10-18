@@ -1,0 +1,392 @@
+#!/bin/bash
+# ./jb -- control Joseph's Board on this Mac.   Run  ./jb help  for the list of commands.
+JB="$(cd "$(dirname "$0")" && pwd)"
+PY="$JB/.venv/bin/python"
+AGENTS="$HOME/Library/LaunchAgents"
+UIDN="$(id -u)"
+ALL="gateway ibkr webull scanner webull-algo ibkr-algo keepawake ibgateway"
+
+load_settings() {
+  . "$JB/lib/settings.sh"
+  jb_load_settings "$JB/settings.env"
+  export JB_DATA_DIR="$JB/data" WEBULL_OPENAPI_TOKEN_DIR="$JB/data/webull-token" PYTHONPATH="$JB/lib" PYTHONUNBUFFERED=1
+  mkdir -p "$JB/logs" "$JB/data/webull-token"
+  if [ -x "$PY" ]; then        # certificates for secure connections (Webull), independent of Python's own setup
+    local cert; cert="$("$PY" -c 'import certifi; print(certifi.where())' 2>/dev/null)"
+    [ -n "$cert" ] && export SSL_CERT_FILE="$cert"
+  fi
+}
+
+label() { echo "com.josephsboard.$1"; }
+plist() { echo "$AGENTS/$(label "$1").plist"; }
+port_of() { case "$1" in gateway) echo "${JB_GATEWAY_PORT:-8090}";; ibkr) echo 8765;; webull) echo 8766;; scanner) echo 8767;; *) echo "";; esac; }
+
+is_on() { case "$(printf '%s' "$1" | tr 'A-Z' 'a-z')" in on|yes|true|1) return 0 ;; *) return 1 ;; esac; }
+
+enabled() {
+  case "$1" in
+    gateway) return 0 ;;
+    ibkr) is_on "$RUN_IBKR_BRIDGE" ;;
+    webull) is_on "$RUN_WEBULL_BRIDGE" ;;
+    scanner) is_on "$RUN_SCANNER" ;;
+    webull-algo) is_on "$RUN_WEBULL_ALGO" ;;
+    ibkr-algo) is_on "$RUN_IBKR_ALGO" ;;
+    keepawake) is_on "$KEEP_AWAKE" ;;
+    ibgateway) is_on "$RUN_IB_AUTOLOGIN" ;;
+    *) return 1 ;;
+  esac
+}
+
+xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+
+write_plist() {
+  mkdir -p "$AGENTS"
+  cat > "$(plist "$1")" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$(label "$1")</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/bash</string><string>$(xml "$JB/bin/run-service.sh")</string><string>$1</string></array>
+  <key>WorkingDirectory</key><string>$(xml "$JB")</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardErrorPath</key><string>$(xml "$JB/logs/launchd-$1.err")</string>
+</dict>
+</plist>
+EOF
+}
+
+is_loaded() { launchctl list 2>/dev/null | awk -v l="$(label "$1")" '$3==l {found=1} END {exit !found}'; }
+pid_of() { launchctl list 2>/dev/null | awk -v l="$(label "$1")" '$3==l {print $1}'; }
+
+svc_start() {   # (re)start one service; returns non-zero (with the reason printed) if launchd refused
+  write_plist "$1"
+  launchctl bootout "gui/$UIDN/$(label "$1")" >/dev/null 2>&1
+  local i=0
+  while is_loaded "$1" && [ $i -lt 20 ]; do sleep 0.25; i=$((i + 1)); done    # let the old copy go
+  local out
+  out="$(launchctl bootstrap "gui/$UIDN" "$(plist "$1")" 2>&1)" && return 0
+  sleep 1
+  out="$(launchctl bootstrap "gui/$UIDN" "$(plist "$1")" 2>&1)" && return 0
+  launchctl load -w "$(plist "$1")" >/dev/null 2>&1 && is_loaded "$1" && return 0
+  echo "could not start $1 -- launchctl said: $out"
+  return 1
+}
+svc_stop() {
+  launchctl bootout "gui/$UIDN/$(label "$1")" >/dev/null 2>&1 || launchctl unload "$(plist "$1")" >/dev/null 2>&1
+}
+
+need_install() {
+  if [ ! -x "$PY" ]; then echo "Not installed yet -- run ./install.sh first."; exit 1; fi
+}
+
+port_up() {  # port_up PORT -> exit 0 if something is listening on 127.0.0.1:PORT
+  "$PY" - "$1" <<'EOF' 2>/dev/null
+import socket, sys
+s = socket.socket(); s.settimeout(0.8)
+sys.exit(0 if s.connect_ex(('127.0.0.1', int(sys.argv[1]))) == 0 else 1)
+EOF
+}
+
+cmd_status() {
+  need_install
+  printf '%-12s %-5s %-9s %s\n' SERVICE SETTING STATE DETAILS
+  for s in $ALL; do
+    local on="off" st="-" det=""
+    enabled "$s" && on="on"
+    if is_loaded "$s"; then
+      local p; p="$(pid_of "$s")"
+      if [ "$p" != "-" ] && [ -n "$p" ]; then st="running"; det="pid $p"; else st="RESTARTING"; det="keeps exiting -- see ./jb logs $s"; fi
+    elif [ "$on" = "on" ]; then st="STOPPED"; det="run ./jb restart"; fi
+    local port; port="$(port_of "$s")"
+    if [ "$st" = "running" ] && [ -n "$port" ]; then
+      if port_up "$port"; then det="$det, answering on port $port"; else det="$det, starting up (port $port not open yet)"; fi
+    fi
+    if [ "$st" != "running" ] && [ -f "$JB/logs/$s.log" ] && [ "$on" = "on" ]; then
+      det="$det | last log: $(grep -v '^=====' "$JB/logs/$s.log" | tail -n 1 | cut -c1-110)"
+    fi
+    printf '%-12s %-5s %-9s %s\n' "$s" "$on" "$st" "$det"
+  done
+  for b in webull ibkr; do      # live trading (./jb live or Go Live): not a service ./jb restart touches
+    if live_alive "$(project_of "$b")"; then
+      printf '%-12s %-5s %-9s %s\n' "$b-live" "-" "LIVE" "pid $(cat "$(project_of "$b")/logs/LIVE_RUNNING")$([ -f "$(project_of "$b")/logs/LIVE_RUNNING.by" ] && echo ', Go Live (Stop Live on the algo tab)' || echo ', ./jb live in a Terminal window')"
+    fi
+  done
+  cmd_url
+}
+
+cmd_url() {
+  local port="${JB_GATEWAY_PORT:-8090}" ts=""
+  for t in tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale; do
+    if command -v "$t" >/dev/null 2>&1 || [ -x "$t" ]; then
+      ts="$("$t" ip -4 2>/dev/null | head -n 1)"; [ -n "$ts" ] && break
+    fi
+  done
+  echo
+  echo "Open the boards at:"
+  [ -n "$ts" ] && echo "   http://$ts:$port/        (from your phone, over Tailscale)"
+  fun="$("$t" funnel status 2>/dev/null | grep -o 'https://[^ ]*' | head -n 1)"
+  [ -n "$fun" ] && echo "   $fun   (from your work computer, over Tailscale Funnel)"
+  echo "   http://localhost:$port/     (on this Mac)"
+  [ -z "$ts" ] && echo "   (Tailscale not found on this Mac -- install it to reach the boards from other devices)"
+  [ -z "$JB_PASSWORD" ] && echo "   Note: no JB_PASSWORD set in settings.env -- the pages are open to anyone on your Tailscale network."
+}
+
+cmd_restart() {
+  need_install
+  local target="${1:-all}"
+  for s in $ALL; do
+    if [ "$target" != "all" ] && [ "$target" != "$s" ]; then continue; fi
+    if [ "$target" = "all" ] && [ "$s" = "ibgateway" ] && enabled "$s" && is_loaded "$s" && [ "$(pid_of "$s")" != "-" ]; then echo "kept     ibgateway (running; ./jb restart ibgateway restarts it, then tap Approve in IBKR Mobile)"; continue; fi
+    if enabled "$s"; then svc_start "$s" && echo "started  $s"
+    else
+      if is_loaded "$s" || [ -f "$(plist "$s")" ]; then svc_stop "$s"; rm -f "$(plist "$s")"; echo "removed  $s (off in settings.env)"; fi
+    fi
+  done
+  sleep 3; echo; cmd_status
+}
+
+cmd_stop() {
+  local target="${1:-all}"
+  for s in $ALL; do
+    if [ "$target" != "all" ] && [ "$target" != "$s" ]; then continue; fi
+    if is_loaded "$s"; then svc_stop "$s"; echo "stopped  $s"; fi
+  done
+  [ "$target" = "all" ] && echo "(Everything stays stopped until ./jb restart -- or the next login, since the jobs are still installed. Use ./jb uninstall to remove them.)"
+}
+
+cmd_logs() {
+  local s="$1"
+  if [ -z "$s" ]; then echo "usage: ./jb logs <$(echo $ALL | tr ' ' '|')>"; exit 1; fi
+  [ -f "$JB/logs/$s.log" ] || { echo "no log yet for $s"; exit 1; }
+  echo "---- $JB/logs/$s.log (Ctrl+C to stop watching) ----"
+  tail -n 80 -f "$JB/logs/$s.log"
+}
+
+cmd_webull_login() {
+  need_install
+  "$PY" "$JB/bin/webull_login.py" || exit 1
+  for s in webull scanner webull-algo; do if enabled "$s"; then svc_start "$s" && echo "restarted $s"; fi; done
+}
+
+project_of() { case "$1" in webull) echo "$JB/webull-algo";; ibkr) echo "$JB/ibkr-algo";; *) echo "";; esac; }
+
+cmd_backtest() {
+  need_install
+  local broker="$1" strat="$2"; shift 2 2>/dev/null
+  local proj; proj="$(project_of "$broker")"
+  if [ -z "$proj" ] || [ -z "$strat" ]; then
+    echo "usage: ./jb backtest <webull|ibkr> <strategy.yaml> [more options]"
+    echo "  e.g. ./jb backtest ibkr strategies/rsi_reversal.yaml"
+    echo "       ./jb backtest webull strategies/sma_crossover.yaml --timespan M60"
+    echo "       ./jb backtest ibkr strategies/rsi_reversal.yaml --csv ~/Downloads/spy.csv"
+    echo "       ./jb backtest ibkr strategies/rsi_reversal.yaml --sessions all"
+    echo "       ./jb backtest webull strategies/rsi_reversal.yaml --recorded --sessions overnight"
+    exit 1
+  fi
+  local src="--$broker"
+  case " $* " in *" --csv "*|*" --recorded "*) src="";; esac
+  cd "$proj" && "$PY" run_backtest.py --strategy "$strat" $src "$@"
+}
+
+cmd_live() {
+  need_install
+  local broker="$1" strat="$2"
+  local proj; proj="$(project_of "$broker")"
+  if [ -z "$proj" ] || [ -z "$strat" ]; then echo "usage: ./jb live <webull|ibkr> <strategy.yaml>"; exit 1; fi
+  local var; if [ "$broker" = "webull" ]; then var=WEBULL_LIVE_TRADING_CONFIRM; else var=IBKR_LIVE_TRADING_CONFIRM; fi
+  echo "=================================================================="
+  echo " LIVE TRADING -- $broker -- REAL MONEY"
+  echo " Strategy file: $strat   (it must contain  confirm_live: true)"
+  echo " One order at a time, within the strategy's risk limits. Sessions and"
+  echo " limit/market orders follow the Trading options on the dashboard's algo"
+  echo " tab (Live column) -- the trader prints them below before it starts."
+  echo " Read $proj/README.md first."
+  echo "=================================================================="
+  if [ -f "$JB/bin/golive.py" ]; then "$PY" "$JB/bin/golive.py" "$broker" || exit 1; fi   # go-live checklist (jb-ideas)
+  printf 'Type  I_UNDERSTAND_THE_RISK  to continue: '
+  read -r answer
+  if [ "$answer" != "I_UNDERSTAND_THE_RISK" ]; then echo "Cancelled."; exit 1; fi
+  export "$var=I_UNDERSTAND_THE_RISK"
+  local lock="$proj/logs/LIVE_RUNNING"
+  if [ -f "$lock" ] && kill -0 "$(cat "$lock" 2>/dev/null)" 2>/dev/null; then
+    echo "Live trading for $broker is already running (another Terminal window, or Go Live on the algo tab)."; exit 1
+  fi
+  mkdir -p "$proj/logs"; echo $$ > "$lock"          # keeps the paper trader from restarting meanwhile
+  rm -f "$lock.by" "$proj/logs/LIVE_EXITED"
+  if is_loaded "$broker-algo"; then svc_stop "$broker-algo"; echo "(stopped the $broker paper trader while live trading runs)"; fi
+  echo "Running live in this window -- keep it open. Ctrl+C stops live trading."
+  trap 'true' INT                       # Ctrl+C stops the trader, then we tidy up below
+  (cd "$proj" && "$PY" -m algo.paper_trader --strategy "$strat" --mode live)
+  local rc=$?
+  trap - INT
+  rm -f "$lock"
+  if [ "$rc" -ne 0 ] && [ "$rc" -ne 130 ] && [ "$rc" -ne 3 ]; then   # stopped by an error (not Ctrl+C, not a start-up
+                                                    # refusal printed above): the board pushes the phone
+    printf '{"rc": %d, "at": %s}\n' "$rc" "$(date +%s)" > "$proj/logs/LIVE_EXITED"
+  fi
+  echo
+  echo "Live trader has exited -- no more live orders will be sent."
+  if enabled "$broker-algo"; then svc_start "$broker-algo" && echo "(paper trader $broker-algo started again)"; fi
+}
+
+# ---- Go Live (jb-golive): live trading as a background job, started from the algo tab ----
+# The job's plist lives in logs/launchd/ (not ~/Library/LaunchAgents), so it does NOT start again by itself after a
+# Mac restart. With the "start again after a Mac restart" option on, a copy also goes in ~/Library/LaunchAgents.
+# KeepAlive is off: a job that stops on its own is not restarted (the guardian pushes your phone instead).
+live_label() { echo "com.josephsboard.$1-live"; }
+live_plist() { echo "$JB/logs/launchd/$(live_label "$1").plist"; }
+live_login_plist() { echo "$AGENTS/$(live_label "$1").plist"; }
+write_live_plist() {   # write_live_plist <broker> <path>
+  mkdir -p "$(dirname "$2")"
+  cat > "$2" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$(live_label "$1")</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/bash</string><string>$(xml "$JB/bin/run-service.sh")</string><string>$1-live</string></array>
+  <key>WorkingDirectory</key><string>$(xml "$JB")</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><false/>
+  <key>ExitTimeOut</key><integer>45</integer>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardErrorPath</key><string>$(xml "$JB/logs/launchd-$1-live.err")</string>
+</dict>
+</plist>
+EOF
+}
+live_alive() { [ -f "$1/logs/LIVE_RUNNING" ] && kill -0 "$(cat "$1/logs/LIVE_RUNNING" 2>/dev/null)" 2>/dev/null; }
+
+cmd_live_service() {
+  need_install
+  local act="$1" broker="$2"
+  local proj; proj="$(project_of "$broker")"
+  if [ -z "$proj" ]; then
+    echo "usage: ./jb live-service start <webull|ibkr> <strategies/file.yaml> [autostart 0|1]"
+    echo "       ./jb live-service stop <webull|ibkr>        (Stop Live: clean stop, the position stays)"
+    echo "       ./jb live-service autostart <webull|ibkr> <on|off>"
+    echo "       ./jb live-service status <webull|ibkr>"
+    exit 1
+  fi
+  local req="$proj/logs/LIVE_SERVICE" lab; lab="$(live_label "$broker")"
+  mkdir -p "$proj/logs"
+  case "$act" in
+    start)
+      local strat="$3" auto="${4:-0}"
+      if live_alive "$proj"; then echo "Live trading for $broker is already running."; exit 1; fi
+      if [ -z "$strat" ] || [ ! -f "$proj/$strat" ]; then echo "No strategy file $strat in $broker-algo."; exit 1; fi
+      printf 'strategy=%s\nconfirm=I_UNDERSTAND_THE_RISK\nstarted=%s\nautostart=%s\n' "$strat" "$(date +%s)" "$auto" > "$req"
+      rm -f "$proj/logs/LIVE_STOP" "$proj/logs/LIVE_LAST.json" "$proj/logs/LIVE_EXITED"
+      if is_loaded "$broker-algo"; then svc_stop "$broker-algo"; echo "(stopped the $broker paper trader while live trading runs)"; fi
+      launchctl bootout "gui/$UIDN/$lab" >/dev/null 2>&1
+      write_live_plist "$broker" "$(live_plist "$broker")"
+      if [ "$auto" = "1" ]; then write_live_plist "$broker" "$(live_login_plist "$broker")"; else rm -f "$(live_login_plist "$broker")"; fi
+      local out
+      if ! out="$(launchctl bootstrap "gui/$UIDN" "$(live_plist "$broker")" 2>&1)"; then
+        echo "could not start live trading -- launchctl said: $out"
+        rm -f "$req" "$(live_login_plist "$broker")"
+        if enabled "$broker-algo"; then svc_start "$broker-algo"; fi
+        exit 1
+      fi
+      echo "Live trading for $broker is starting in the background ($strat). Stop it with Stop Live on the algo tab."
+      ;;
+    stop)
+      rm -f "$(live_login_plist "$broker")"
+      if ! live_alive "$proj" && ! is_loaded "$broker-live"; then
+        rm -f "$req"; echo "Live trading for $broker is not running (as a background job)."; exit 0
+      fi
+      if live_alive "$proj" && [ ! -f "$proj/logs/LIVE_RUNNING.by" ]; then
+        echo "Live trading for $broker runs in a Terminal window (./jb live): stop it there with Ctrl+C."; exit 1
+      fi
+      touch "$proj/logs/LIVE_STOP"
+      launchctl bootout "gui/$UIDN/$lab" >/dev/null 2>&1
+      local i=0
+      while live_alive "$proj" && [ $i -lt 120 ]; do sleep 0.5; i=$((i + 1)); done
+      rm -f "$req" "$proj/logs/LIVE_STOP"
+      if live_alive "$proj"; then echo "Live trading for $broker did not stop within a minute -- check ./jb logs $broker-live."; exit 1; fi
+      echo "Live trading for $broker stopped (no orders were sent by stopping; the position stays)."
+      if enabled "$broker-algo"; then svc_start "$broker-algo" && echo "(paper trader $broker-algo started again)"; fi
+      ;;
+    autostart)
+      if [ "$3" = "on" ]; then
+        if [ -f "$req" ]; then write_live_plist "$broker" "$(live_login_plist "$broker")"; sed -i.bak 's/^autostart=.*/autostart=1/' "$req"; rm -f "$req.bak"; fi
+        echo "Live trading for $broker starts again after a Mac restart (while it is running)."
+      else
+        rm -f "$(live_login_plist "$broker")"
+        if [ -f "$req" ]; then sed -i.bak 's/^autostart=.*/autostart=0/' "$req"; rm -f "$req.bak"; fi
+        echo "Live trading for $broker does NOT start again by itself after a Mac restart."
+      fi
+      ;;
+    status)
+      if live_alive "$proj"; then
+        echo "running, pid $(cat "$proj/logs/LIVE_RUNNING")$([ -f "$proj/logs/LIVE_RUNNING.by" ] && echo ' (Go Live)' || echo ' (./jb live in Terminal)')"
+      else echo "not running"; fi
+      ;;
+    *) cmd_live_service ;;
+  esac
+}
+
+cmd_live_reset() {
+  need_install
+  local broker="$1" strat="$2"
+  local proj; proj="$(project_of "$broker")"
+  if [ -z "$proj" ] || [ -z "$strat" ]; then echo "usage: ./jb live-reset <webull|ibkr> <strategy.yaml>"; exit 1; fi
+  local stem; stem="$(basename "$strat")"; stem="${stem%.*}"
+  local f="$proj/logs/state_${stem}_live.json"
+  if [ ! -f "$f" ]; then echo "There is no live record for $strat -- nothing to reset."; exit 0; fi
+  echo "This clears the algo's LIVE record for $strat: what it thinks it holds, and its past live trades."
+  echo "Only do this when your $broker account holds NO shares of that strategy's symbol."
+  printf 'Type  RESET  to continue: '
+  read -r answer
+  if [ "$answer" != "RESET" ]; then echo "Cancelled."; exit 1; fi
+  mv "$f" "$f.reset-$(date +%Y%m%d-%H%M%S)"
+  echo "Done (the old record was kept as $(basename "$f").reset-...). Start again with:  ./jb live $broker $strat"
+}
+
+cmd_uninstall() {
+  for s in $ALL; do svc_stop "$s"; rm -f "$(plist "$s")"; done
+  for b in webull ibkr; do launchctl bootout "gui/$UIDN/$(live_label "$b")" >/dev/null 2>&1; rm -f "$(live_login_plist "$b")" "$(live_plist "$b")"; done
+  echo "All background jobs removed. Your files, settings and recorded data are untouched."
+  echo "(To remove everything, delete this folder.)"
+}
+
+cmd_help() {
+  cat <<EOF
+./jb status                      what's running, and the address to open
+./jb restart [service]           apply settings.env changes / restart (default: everything)
+./jb stop [service]              stop (default: everything)
+./jb logs <service>              watch a service's log  (${ALL// /, })
+./jb webull-login                approve Webull API access (first time, or when Webull asks again)
+./jb ibkr-autologin [off]       automatic IB Gateway login: you only tap Approve in IBKR Mobile
+./jb backtest <webull|ibkr> <strategy.yaml> [options]    run a backtest (results on the dashboard)
+./jb live <webull|ibkr> <strategy.yaml>                  LIVE trading, in this window (real money)
+./jb live-reset <webull|ibkr> <strategy.yaml>            clear the algo's live record (see README)
+./jb live-service <start|stop|autostart|status> <webull|ibkr> ...   what the algo tab's Go Live / Stop Live buttons run
+./jb url                         print the address of the boards
+./jb uninstall                   remove the background jobs (keeps files and data)
+EOF
+}
+
+load_settings
+case "$1" in
+  status|"") cmd_status ;;
+  restart|start) cmd_restart "$2" ;;
+  stop) cmd_stop "$2" ;;
+  logs|log) cmd_logs "$2" ;;
+  webull-login) cmd_webull_login ;;
+  ibkr-autologin) shift; bash "$JB/bin/ib-autologin.sh" "${1:-setup}" ;;
+  backtest) shift; cmd_backtest "$@" ;;
+  live) shift; cmd_live "$@" ;;
+  live-reset) shift; cmd_live_reset "$@" ;;
+  live-service) shift; cmd_live_service "$@" ;;
+  url) cmd_url ;;
+  uninstall) cmd_uninstall ;;
+  help|-h|--help) cmd_help ;;
+  *) echo "unknown command: $1"; cmd_help; exit 1 ;;
+esac

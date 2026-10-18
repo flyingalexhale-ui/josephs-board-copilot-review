@@ -1,0 +1,41 @@
+# Overnight gap (paper first!). The idea: a stock that is still up at least 0.5% vs. the 4 pm
+# close in the LAST 30 MINUTES OF AFTER-HOURS (7:30-8:00 pm New York time) often carries that
+# strength through the night. Buy then, hold overnight, sell at the 9:30 open -- or earlier
+# on the stop-loss / take-profit, which the algo checks all night.
+#   * Monday to Thursday evenings only, and never the evening before a market
+#     holiday (no buying into a weekend or a holiday).
+#   * IBKR is the right broker for this: it has overnight prices.
+#   * Try it in PAPER mode for a few weeks, and backtest it from the algo tab, before ever
+#     thinking about live. Change the symbol below to the stock you want it to trade.
+name: "Overnight gap (buy late after-hours, sell at the open)"
+symbol: "AAPL"
+
+indicators:
+  - kind: clock        # clock_minute_et (19:30 = 1170), clock_session (3 regular, 4 after-hours), clock_weekday (0 Mon), clock_next_day_open (0 before a holiday)
+  - kind: vs_close     # vs_close_prev (the 4 pm close), vs_close_pct (% vs that close)
+
+entry:
+  side: buy
+  when: "clock_session == 4 and clock_minute_et >= 1170 and clock_weekday <= 3 and clock_next_day_open == 1 and vs_close_pct >= 0.5"
+
+exit:
+  when: "clock_session == 3"      # the first regular-hours minute: sell at the open
+
+position_size:
+  pct_of_equity: 25
+
+risk:
+  stop_loss_pct: 2          # sell if it drops 2% below the buy price (checked overnight too)
+  take_profit_pct: 4        # sell if it rises 4% above the buy price
+  max_order_notional_usd: 25000   # live-mode only; ignored in paper/backtest
+
+max_open_positions: 1
+
+# Sessions this strategy needs (the algo tab's Trading options panel overrides this once you
+# press Save there -- then tick Pre-market, After-hours and Overnight in its Paper column).
+trading:
+  paper_sessions: [premarket, afterhours, overnight]
+  live_sessions: []
+  order_type: limit
+
+confirm_live: false

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · System check</title>
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- System check (jb-syscheck): is every part of the board, both brokers, phone alerts and every
+     internet feed working right now? "Run check" tests them all live and pushes the answer to the
+     phone ("ALL LIVE" or what is down). /api/plus/syscheck in gateway/syscheck.py -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:860px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid #2f7a44;padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  header a{color:var(--cyan);text-decoration:none;font-size:12px;margin-left:12px;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:18px 4px 6px;}
+  .banner{margin:14px 0 8px;border-radius:10px;padding:16px;border:1px solid var(--line-bright);background:var(--panel);}
+  .banner.ok{border-color:#2f7a44;background:#06240f;} .banner.warn{border-color:#8a6420;background:#2a1d06;} .banner.bad{border-color:var(--red);background:#2a0a0a;}
+  .big{font-size:22px;font-weight:700;letter-spacing:.5px;}
+  .banner.ok .big{color:var(--green);} .banner.warn .big{color:var(--amber);} .banner.bad .big{color:var(--red);}
+  .sub{color:var(--dim);font-size:12px;margin-top:6px;line-height:1.5;}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  button{font:inherit;font-size:14px;font-weight:700;padding:12px 16px;border-radius:8px;border:1px solid var(--line-bright);background:#0b2744;color:var(--white);cursor:pointer;flex:1;min-width:150px;}
+  button.main{background:#0d4a26;border-color:#2f7a44;}
+  button:disabled{opacity:.55;cursor:default;}
+  .pushed{margin-top:10px;font-size:12px;white-space:pre-line;line-height:1.5;color:#cfe0ee;background:#04101f;border:1px solid var(--line);border-radius:6px;padding:8px;display:none;}
+  .grp{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:4px 12px;margin:6px 0;}
+  .row{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);align-items:flex-start;}
+  .row:last-child{border-bottom:0;}
+  .dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:4px;background:var(--dim);}
+  .dot.ok{background:var(--green);box-shadow:0 0 6px var(--green);} .dot.bad{background:var(--red);box-shadow:0 0 6px var(--red);} .dot.warn{background:var(--amber);}
+  .dot.off{background:#33475c;}
+  .nm{font-weight:700;min-width:0;flex:1;} .dt{color:var(--dim);font-weight:400;font-size:12px;margin-top:2px;line-height:1.4;word-break:break-word;}
+  .fx{color:var(--amber);font-size:12px;margin-top:2px;}
+  .sw{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:10px 12px;margin:6px 0;line-height:1.5;}
+  .sw input{width:20px;height:20px;flex:none;}
+  .note{color:var(--dim);font-size:12px;line-height:1.6;margin:14px 4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>SYSTEM CHECK</h1><div><a href="phone.html">Phone page</a><a href="health.html">Health</a><a href="./">Full board</a></div></header>
+
+<div class="banner" id="ban">
+  <div class="big" id="big">Loading…</div>
+  <div class="sub" id="sub"></div>
+  <div class="btns">
+    <button class="main" id="run">Run check now</button>
+    <button id="test">Send test push</button>
+  </div>
+  <div class="pushed" id="pushed"></div>
+</div>
+
+<div id="groups"></div>
+
+<h2>Keep watch</h2>
+<label class="sw"><input type="checkbox" id="watch"> <span>Push me when something breaks: checks every 5 minutes, pushes if a part stays down for 10+ minutes, and again when it is fixed.</span></label>
+
+<div class="note"><b>Run check now</b> tests everything live (about 10-20 seconds): every board part, both brokers and IB Gateway,
+your phone alerts, and each free website the board reads. It then pushes the answer to your phone: <b>ALL LIVE</b>, or what is down and how to fix it.
+Green = working. Amber = worth a look (often temporary, or the market is closed). Red = down.
+Grey = switched off or not checked yet.</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function api(p, data) {
+    return fetch('/api/plus/syscheck' + p, data ? { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
+      : { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; });
+    });
+  }
+  function when(ms) { return ms ? new Date(ms).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : ''; }
+  var HEAD = { ok: 'ALL LIVE', warn: 'LIVE, a few things to check', bad: 'SOMETHING IS DOWN' };
+  function show(d, live) {
+    var c = d.counts || {};
+    $('ban').className = 'banner ' + d.overall;
+    $('big').textContent = HEAD[d.overall] || '';
+    var lr = d.last_run;
+    $('sub').innerHTML = (live ? 'Tested live just now. ' : 'Quick look (updates every 30 s). ') + esc(c.ok) + ' OK' +
+      (c.warn ? ', ' + esc(c.warn) + ' to check' : '') + (c.bad ? ', ' + esc(c.bad) + ' down' : '') + '.' +
+      (lr && !live ? '<br>Last full check: ' + esc(when(lr.at)) + ' (' + esc(HEAD[lr.overall] || lr.overall) + ')' : '');
+    $('groups').innerHTML = (d.groups || []).map(function (g) {
+      if (!g.items.length) return '';
+      return '<h2>' + esc(g.name) + '</h2><div class="grp">' + g.items.map(function (i) {
+        var dot = i.state === 'info' ? '' : i.state;
+        return '<div class="row"><span class="dot ' + esc(dot) + '"></span><div class="nm">' + esc(i.name) +
+          '<div class="dt">' + esc(i.detail) + '</div>' + (i.fix && i.state !== 'ok' ? '<div class="fx">' + esc(i.fix) + '</div>' : '') + '</div></div>';
+      }).join('') + '</div>';
+    }).join('');
+    if (d.settings) $('watch').checked = !!d.settings.watch;
+  }
+  var busy = false;
+  function load() {
+    if (busy) return;
+    api('').then(function (d) { if (!busy) show(d, false); }).catch(function (e) { $('big').textContent = 'Could not reach the board'; $('sub').textContent = e.message; });
+  }
+  $('run').onclick = function () {
+    busy = true; $('run').disabled = true; $('run').textContent = 'Checking everything…';
+    $('pushed').style.display = 'none';
+    api('/run', {}).then(function (d) {
+      show(d, true);
+      var p = d.push || {};
+      $('pushed').style.display = 'block';
+      $('pushed').textContent = (p.sent ? 'Sent to your phone:\n' : 'Could not push to your phone (' + (p.error || '?') + '). The result would have been:\n') + (p.text || '');
+    }).catch(function (e) { $('sub').textContent = 'Check failed: ' + e.message; })
+      .then(function () { busy = false; $('run').disabled = false; $('run').textContent = 'Run check now'; });
+  };
+  $('test').onclick = function () {
+    $('test').disabled = true;
+    api('/push', {}).then(function () { $('test').textContent = 'Sent: check your phone'; })
+      .catch(function (e) { $('test').textContent = 'Failed: ' + e.message; })
+      .then(function () { setTimeout(function () { $('test').disabled = false; $('test').textContent = 'Send test push'; }, 4000); });
+  };
+  $('watch').onchange = function () { api('/settings', { watch: $('watch').checked }).catch(function () {}); };
+  if (/[?&]run=1/.test(location.search)) $('run').onclick(); else load();
+  setInterval(load, 30000);
+})();
+</script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+</body>
+</html>

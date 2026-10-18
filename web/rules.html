@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alex Hale's Board · Rules</title>
+<meta name="theme-color" content="#04101f">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- If-this-then-that rules (jb-lab): /api/plus/rules in gateway/rules.py -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid #2f7a44;padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#5fc97e;}
+  header a{color:var(--cyan);text-decoration:none;font-size:12px;margin-left:12px;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:18px 4px 8px;}
+  .intro{color:var(--dim);font-size:12px;line-height:1.6;margin:10px 4px;} .intro b{color:var(--white);font-weight:600;}
+  .box{background:var(--panel);border:1px solid var(--line-bright);border-radius:10px;padding:12px;margin-bottom:10px;}
+  .tabs2{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+  .tabs2 button{background:transparent;border:1px solid var(--line-bright);color:#8fd8ff;font:inherit;font-size:12px;padding:6px 12px;border-radius:14px;cursor:pointer;min-height:32px;}
+  .tabs2 button.on{border-color:#39e07a;color:#39e07a;}
+  .f{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;}
+  .f label{display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:var(--dim);letter-spacing:.04em;text-transform:uppercase;}
+  select,input{background:#04101f;color:var(--white);border:1px solid var(--line-bright);border-radius:6px;font:inherit;font-size:12px;padding:6px 8px;min-height:32px;}
+  .btn{background:transparent;border:1px solid var(--line-bright);color:#8fd8ff;font:inherit;font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;min-height:34px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:6px 0;}
+  .kpi .l{color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase;} .kpi .v{font-size:20px;font-weight:700;line-height:1.2;} .kpi .s{color:var(--dim);font-size:11px;}
+  .good{color:var(--green);} .mid{color:var(--amber);} .bad{color:var(--red);} .grey{color:var(--dim);}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th:first-child,td:first-child{text-align:left;}
+  th{color:var(--dim);font-weight:500;font-size:11px;}
+  .tw{overflow-x:auto;margin:6px 0;} .tw.tall{max-height:420px;overflow-y:auto;}
+  .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:10px;} .two > *{min-width:0;}
+  .f label{max-width:100%;} select{max-width:100%;}
+  .muted{color:var(--dim);font-size:11px;line-height:1.5;}
+  svg.big{display:block;width:100%;height:200px;} svg.mc{display:block;width:100%;height:120px;}
+  .ok{color:var(--green);} .no{color:var(--red);}
+  .bar{display:inline-block;height:8px;border-radius:2px;background:#2f7a44;vertical-align:middle;margin-left:6px;}
+  .cond{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0;padding:6px;border:1px dashed var(--line-bright);border-radius:8px;}
+  .cond input{width:70px;} .x{background:transparent;border:0;color:var(--dim);font-size:18px;cursor:pointer;}
+  pre{white-space:pre-wrap;font-size:11.5px;color:#cfe0ee;background:#04101f;border:1px solid var(--line);border-radius:6px;padding:8px;max-height:300px;overflow:auto;}
+  .grid5 td{text-align:center;font-weight:600;color:#04101f;} .err{color:#ff8a80;}
+  .rr{padding:8px 0;border-top:1px solid var(--line);font-size:13px;} .rr:first-child{border-top:0;} .rt{color:#cfe0ee;margin:3px 0 6px;line-height:1.45;}
+</style>
+<body>
+<div class="wrap">
+  <header><h1>RULES</h1><div><a href="phone.html">Phone</a><a href="lab.html">Strategy lab</a><a href="./">Full board</a></div></header>
+  <p class="intro">Simple <b>if this, then that</b> rules the board checks every 30 seconds, in every session. A rule can send a push, open the order ticket filled in
+    (you check it and tap Send yourself), or place a <b>paper</b> order tracked here. A rule never sends a real order by itself. New rules start as paper.</p>
+  <div class="box">
+    <h2>New rule <span class="muted" id="eMode" style="text-transform:none"></span></h2>
+    <div class="f"><label>Name<input id="rName" placeholder="TQQQ breaks 80" style="width:200px"></label>
+      <label>On<select id="rOn"><option value="1">On</option><option value="0">Off</option></select></label>
+      <label>Quiet for (minutes) after firing<input id="rQuiet" type="number" value="30" min="1" max="1440" style="width:80px"></label></div>
+    <h2>When</h2>
+    <div class="f"><label>This happens<select id="wType"><option value="price">A price crosses a level</option><option value="move">A move since the 4 pm close</option>
+      <option value="tag">A why-tag shows up</option><option value="mood">The Futures mood turns</option><option value="time">A time of day (ET, weekdays)</option></select></label>
+      <label class="w-sym">Symbol<input id="wSym" placeholder="TQQQ" style="width:90px;text-transform:uppercase"></label>
+      <label class="w-dir">Direction<select id="wDir"><option value="above">above / up</option><option value="below">below / down</option></select></label>
+      <label class="w-val">Value<input id="wVal" type="number" step="any" style="width:90px"></label>
+      <label class="w-tag">Tag<select id="wTag"></select></label>
+      <label class="w-mood">Mood<select id="wMood"><option>Risk-on</option><option>Risk-off</option><option>Mixed</option></select></label>
+      <label class="w-time">Time<input id="wTime" placeholder="19:30" style="width:70px"></label></div>
+    <h2>Then</h2>
+    <div class="f"><label>Do this<select id="tType"><option value="paper">Paper order (tracked here)</option><option value="push">Send a push</option>
+      <option value="ticket">Push that opens the ticket filled in</option></select></label>
+      <label class="t-tr">Trade symbol<input id="tSym" placeholder="same" style="width:90px;text-transform:uppercase"></label>
+      <label class="t-tr">Side<select id="tSide"><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
+      <label class="t-tr">Shares<input id="tQty" type="number" min="0" style="width:80px"></label>
+      <label class="t-tk">Broker<select id="tBr"><option value="ibkr">IBKR</option><option value="webull">Webull</option></select></label></div>
+    <div class="f"><button class="btn" id="rSave">Save rule</button><button class="btn" id="rNew" style="display:none">Cancel editing</button><span id="rMsg" class="muted"></span></div>
+    <p class="muted" id="rWarn"></p>
+  </div>
+  <div class="box"><h2>My rules</h2><div id="rList" class="muted">Loading…</div></div>
+  <div class="two">
+    <div class="box"><h2>Paper orders from rules</h2><div id="pList" class="tw tall"></div></div>
+    <div class="box"><h2>What fired</h2><div id="lList" class="tw tall"></div></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var API = '/api/plus/rules', D = null, editing = null;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function post(p, d) { return fetch(API + p, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }).then(function (r) { return r.json(); }); }
+  function t(ms) { var d = new Date(ms); return d.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  function money(v) { return v == null ? '–' : (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2); }
+  function sync() {
+    var w = $('wType').value, a = $('tType').value;
+    function show(c, on) { [].forEach.call(document.querySelectorAll(c), function (e) { e.style.display = on ? '' : 'none'; }); }
+    show('.w-sym', w === 'price' || w === 'move' || w === 'tag'); show('.w-dir', w === 'price' || w === 'move'); show('.w-val', w === 'price' || w === 'move');
+    show('.w-tag', w === 'tag'); show('.w-mood', w === 'mood'); show('.w-time', w === 'time');
+    show('.t-tr', a !== 'push'); show('.t-tk', a === 'ticket');
+    $('wVal').placeholder = w === 'move' ? '% e.g. 2' : 'price';
+  }
+  $('wType').onchange = sync; $('tType').onchange = sync;
+  function form(r) {
+    r = r || { on: true, quiet_min: 30, when: { type: 'price', dir: 'above' }, then: { type: 'paper', side: 'buy', broker: 'ibkr' } };
+    var w = r.when || {}, th = r.then || {};
+    $('rName').value = r.name || ''; $('rOn').value = r.on === false ? '0' : '1'; $('rQuiet').value = r.quiet_min || 30;
+    $('wType').value = w.type || 'price'; $('wSym').value = w.sym || ''; $('wDir').value = w.dir || 'above'; $('wVal').value = w.value == null ? '' : w.value;
+    if (w.tag) $('wTag').value = w.tag; if (w.mood) $('wMood').value = w.mood; $('wTime').value = w.time || '';
+    $('tType').value = th.type || 'paper'; $('tSym').value = th.sym && th.sym !== w.sym ? th.sym : ''; $('tSide').value = th.side || 'buy'; $('tQty').value = th.qty || ''; $('tBr').value = th.broker || 'ibkr';
+    editing = r.id || null; $('rNew').style.display = editing ? '' : 'none'; $('eMode').textContent = editing ? '(editing ' + (r.name || 'rule') + ')' : '';
+    sync();
+  }
+  function read() {
+    return { id: editing, name: $('rName').value, on: $('rOn').value === '1', quiet_min: $('rQuiet').value,
+      when: { type: $('wType').value, sym: $('wSym').value, dir: $('wDir').value, value: $('wVal').value, tag: $('wTag').value, mood: $('wMood').value, time: $('wTime').value },
+      then: { type: $('tType').value, sym: $('tSym').value, side: $('tSide').value, qty: $('tQty').value, broker: $('tBr').value } };
+  }
+  $('rSave').onclick = function () {
+    $('rMsg').textContent = 'Saving…';
+    post('/save', { rule: read() }).then(function (d) {
+      if (d.error) { $('rMsg').innerHTML = '<span class="err">' + esc(d.error) + '</span>'; return; }
+      $('rMsg').textContent = 'Saved: ' + d.rule.text; form(); load();
+    });
+  };
+  $('rNew').onclick = function () { form(); $('rMsg').textContent = ''; };
+  function draw() {
+    var d = D;
+    $('rWarn').innerHTML = (!d.push ? 'Phone pushes are not set up yet (Signals tab), so push and ticket rules will only show in the list below. ' : '') +
+      (!d.phone_url ? 'The board does not know its phone link yet, so a ticket push will not open the ticket by itself: open the Phone page and use the ticket there.' : '');
+    $('rList').innerHTML = d.rules.length ? d.rules.map(function (r) {
+      return '<div class="rr"><div><b>' + esc(r.name) + '</b>' + (r.on ? '' : ' <span class="muted">(off)</span>') + (r.error ? ' <span class="err">' + esc(r.error) + '</span>' : '') +
+        ' <span class="muted">last fired ' + (r.last_fired ? t(r.last_fired) : 'never') + '</span></div><div class="rt">' + esc(r.text) + '</div>' +
+        '<div class="f"><button class="btn" data-e="' + r.id + '">Edit</button><button class="btn" data-t="' + r.id + '">Test</button><button class="btn" data-d="' + r.id + '">Delete</button></div></div>'; }).join('') : 'No rules yet. Make one above.';
+    var tot = 0;
+    $('pList').innerHTML = d.paper.length ? '<table><tr><th>When</th><th>Rule</th><th>Order</th><th>Now</th><th>P/L</th><th></th></tr>' + d.paper.map(function (o) {
+      if (o.pl != null && !o.test) tot += o.pl;
+      return '<tr><td>' + t(o.at) + '</td><td>' + esc(o.name) + (o.test ? ' <span class="muted">(test)</span>' : '') + '</td><td>' + esc(o.side + ' ' + o.qty + ' ' + o.sym + ' @ ' + o.price) + '</td><td>' + (o.now == null ? '–' : o.now) +
+        (o.open ? '' : ' <span class="muted">closed</span>') + '</td><td class="' + (o.pl >= 0 ? 'ok' : 'no') + '">' + money(o.pl) + '</td><td>' + (o.open ? '<button class="btn" data-c="' + o.id + '">Close</button>' : '') + '</td></tr>'; }).join('') +
+      '</table><p class="muted">Total, tests left out: <b class="' + (tot >= 0 ? 'ok' : 'no') + '">' + money(tot) + '</b>. At the board\'s last price; no fees or slippage.</p>' : '<span class="muted">None yet.</span>';
+    $('lList').innerHTML = d.log.length ? '<table><tr><th>When</th><th>Rule</th><th>Why</th><th>Did</th></tr>' + d.log.map(function (l) {
+      return '<tr><td>' + t(l.at) + '</td><td>' + esc(l.name) + (l.test ? ' (test)' : '') + '</td><td>' + esc(l.reason) + '</td><td>' + esc(l.action) + (l.push_error ? ' <span class="err">' + esc(l.push_error) + '</span>' : '') + '</td></tr>'; }).join('') + '</table>' : '<span class="muted">Nothing yet.</span>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || !D) return;
+    var id = b.dataset.e || b.dataset.t || b.dataset.d || b.dataset.c; if (!id) return;
+    if (b.dataset.e) { form(D.rules.filter(function (r) { return r.id === id; })[0]); window.scrollTo(0, 0); }
+    else if (b.dataset.t) post('/test', { id: id }).then(function (d) { $('rMsg').textContent = d.error ? 'Test ran, but: ' + d.error : 'Test ran.'; load(); });
+    else if (b.dataset.d) { if (confirm('Delete this rule?')) post('/delete', { id: id }).then(load); }
+    else if (b.dataset.c) post('/paper/close', { id: id }).then(load);
+  });
+  function load() {
+    return fetch(API, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!$('wTag').options.length) $('wTag').innerHTML = (d.tags || []).map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('');
+      D = d; draw();
+    });
+  }
+  form(); load(); setInterval(function () { if (!document.hidden) load(); }, 30000);
+})();
+</script>
+</body>
+</html>

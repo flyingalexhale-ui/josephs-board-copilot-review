@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="looks.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04101f">
+<title>Alex Hale's Board · MACRO</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="fonts/plex.css">
+<!-- MACRO tab (jb-macro): the long-term economic backdrop from free FRED data (St. Louis Fed) and macro news. Data: /api/plus/macro -->
+<style>
+  :root{--bg:#04101f;--panel:#071a30;--line:#0d2740;--line-bright:#164060;--green:#00ff41;--red:#ff3b30;
+    --white:#f2f2f2;--dim:#6f8aa3;--cyan:#00e5ff;--amber:#ffb648;--accent:#5b4bb5;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--white);
+    font-family:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased;font-size:13px;}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 12px 40px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:6px 14px;border-bottom:2px solid var(--accent);padding:14px 4px 10px;}
+  h1{margin:0;font-size:20px;letter-spacing:1px;color:#b39dff;}
+  h2{font-size:12px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin:22px 4px 8px;}
+  #when{font-size:12px;color:var(--dim);}
+  #jump{display:flex;flex-wrap:wrap;gap:6px;margin:10px 4px 0;}
+  #jump a{font-size:11px;color:#b39dff;text-decoration:none;border:1px solid #2e2560;border-radius:12px;padding:3px 9px;}
+  .card{background:var(--panel);border:1px solid var(--line-bright);border-radius:8px;padding:6px 12px;}
+  .set{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .set:last-child{border-bottom:0;}
+  .set input[type=checkbox]{width:18px;height:18px;margin-top:1px;accent-color:#5b4bb5;flex-shrink:0;}
+  .set .t{flex:1;} .set .t small{display:block;color:var(--dim);font-size:11px;margin-top:2px;line-height:1.45;}
+  input[type=text],input[type=number],select,textarea{background:#000;color:var(--white);border:1px solid var(--line-bright);border-radius:4px;font:inherit;font-size:12px;padding:5px 6px;}
+  textarea{width:100%;min-height:80px;line-height:1.45;}
+  button{font:inherit;font-size:12px;color:var(--white);border:1px solid #3d3191;background:#3d3191;border-radius:4px;padding:6px 10px;font-weight:700;cursor:pointer;}
+  button.ghost{background:#0b2238;border-color:#164060;}
+  button.red{background:#7a1c1c;border-color:#a12a2a;}
+  .ev{display:flex;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line);align-items:baseline;}
+  .ev .tm{min-width:92px;color:var(--dim);font-size:11px;}
+  .ev .k{min-width:110px;font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.4px;}
+  .ev .tx{flex:1;line-height:1.45;} .ev a{color:#7fd6ff;}
+  .tbl{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;}
+  td,th{padding:6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th{color:var(--dim);font-weight:400;font-size:11px;} td:first-child,th:first-child{text-align:left;}
+  .up{color:var(--green);} .dn{color:var(--red);} .warn{color:var(--amber);} .hot{color:#d6a8ff;font-weight:700;}
+  .note{font-size:11px;color:var(--dim);margin:6px 4px;line-height:1.5;}
+  .err{color:#ff8a80;}
+  .msg{font-size:12px;color:var(--dim);margin-left:8px;}
+  .chip{display:inline-block;border-radius:3px;padding:1px 6px;font-size:10.5px;font-weight:700;border:1px solid;margin:1px 2px;}
+  .c-g{background:#062a14;color:#5dff8f;border-color:#145c2c;} .c-a{background:#2e2400;color:#ffc400;border-color:#7a5c00;}
+  .c-r{background:#3a0b0b;color:#ff8a80;border-color:#7a1c1c;} .c-b{background:#0e2a3a;color:#7fd6ff;border-color:#1e5a78;}
+  .c-d{background:#14202e;color:#9fb3c8;border-color:#2a3d52;} .c-p{background:#22163f;color:#d6a8ff;border-color:#4b3a8a;}
+  .bar{height:8px;background:#0b2238;border-radius:4px;overflow:hidden;} .bar i{display:block;height:100%;background:#7c6cf0;}
+  .row2{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 4px;}
+  .big{font-size:22px;font-weight:700;}
+  @media (max-width:600px){ .ev{flex-wrap:wrap;} .ev .tm,.ev .k{min-width:0;} }
+</style>
+<style>
+  .gauge{position:relative;height:14px;border-radius:7px;background:linear-gradient(90deg,#7a1c1c,#2a3d52 45%,#2a3d52 55%,#145c2c);margin:12px 0 4px;}
+  .gauge i{position:absolute;top:-5px;width:4px;height:24px;background:#fff;border-radius:2px;margin-left:-2px;box-shadow:0 0 6px #fff;}
+  .gl{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:8px;}
+  .ind{padding:8px 12px;} .ind .nm{color:var(--dim);font-size:11px;} .ind .v{font-size:18px;font-weight:700;margin:2px 0;}
+  .ind .rd{font-size:11.5px;line-height:1.45;margin-top:4px;}
+  .gb{display:flex;align-items:center;gap:8px;margin:4px 0;} .gb span:first-child{width:84px;font-size:12px;}
+  .gb .track{flex:1;height:8px;background:#0b2238;border-radius:4px;position:relative;} .gb .track b{position:absolute;top:0;height:100%;border-radius:4px;}
+  .gb .track:after{content:'';position:absolute;left:50%;top:-2px;height:12px;width:1px;background:#6f8aa3;}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:4px;margin-right:6px;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>MACRO</h1><div id="when">Loading…</div></header>
+  <p class="note">The slow-moving big picture: interest rates, inflation, jobs, growth and market stress, from free official data
+    (FRED, the St. Louis Fed). It changes over weeks and months, not tonight; use it as a background tailwind or headwind for your
+    3x funds, not as a trade signal. Explained in the <b>? Legend</b> and the Night desk guide.</p>
+  <div id="top"></div>
+  <h2>Score over time</h2><div id="hist"></div>
+  <h2>The indicators</h2><div id="inds"></div>
+  <h2>Macro news (last 7 days)</h2><div id="news"></div>
+  <p class="note" id="foot"></p>
+</div>
+<script>
+(function () {
+  'use strict';
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function ago(ms) { var m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; }
+  function col(s) { return s > 0.25 ? '#5dff8f' : s < -0.25 ? '#ff8a80' : '#9fb3c8'; }
+  function line(pts, w, h, color, zero) {
+    if (!pts || pts.length < 2) return '';
+    var ys = pts.map(function (p) { return p[1]; }), lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys);
+    if (zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    if (hi === lo) { hi += 1; lo -= 1; }
+    var X = function (i) { return 2 + i / (pts.length - 1) * (w - 4); }, Y = function (v) { return h - 3 - (v - lo) / (hi - lo) * (h - 6); };
+    var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p[1]).toFixed(1); }).join('');
+    return '<svg width="100%" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" style="display:block">' +
+      (zero ? '<line x1="0" x2="' + w + '" y1="' + Y(0).toFixed(1) + '" y2="' + Y(0).toFixed(1) + '" stroke="#2a3d52" stroke-dasharray="3 3"/>' : '') +
+      '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>';
+  }
+  function fmt(i) {
+    if (i.value == null) return '–';
+    var v = Math.abs(i.value) >= 100 ? Math.round(i.value).toLocaleString() : i.value.toFixed(2);
+    return v + (i.unit === '%' ? '%' : i.unit === 'k' ? 'k' : i.unit === 'pts' ? ' pts' : '');
+  }
+  function draw(d) {
+    var o = d.overall;
+    document.getElementById('when').textContent = 'Updated ' + ago(d.at);
+    var ask = 'Here is the long-term macro backdrop from my board (FRED data). How does it affect 3x leveraged and 3x inverse index ETFs over the next weeks, and what should I watch?';
+    document.getElementById('top').innerHTML = o ? '<div class="card"><div class="row2" style="margin:6px 0"><span class="big">' + (o.score > 0 ? '+' : '') + o.score + '</span>' +
+      '<span class="chip ' + (o.label === 'Tailwind' ? 'c-g' : o.label === 'Headwind' ? 'c-r' : 'c-d') + '" style="font-size:13px">' + esc(o.label.toUpperCase()) + '</span>' +
+      '<span class="note">from ' + o.n + ' indicators</span></div>' +
+      '<div class="gauge"><i style="left:' + ((o.score + 100) / 2) + '%"></i></div><div class="gl"><span>-100 headwind</span><span>mixed</span><span>tailwind +100</span></div>' +
+      '<div style="margin-top:10px">' + Object.keys(o.groups).map(function (g) {
+        var v = o.groups[g], w = Math.min(50, Math.abs(v) / 2);
+        return '<div class="gb"><span>' + esc(g) + '</span><span class="track"><b style="' + (v >= 0 ? 'left:50%' : 'right:50%') + ';width:' + w + '%;background:' + (v >= 0 ? '#3fbf6a' : '#c0504a') + '"></b></span><span style="width:40px;text-align:right" class="' + (v > 0 ? 'up' : v < 0 ? 'dn' : '') + '">' + (v > 0 ? '+' : '') + v + '</span></div>';
+      }).join('') + '</div>' +
+      '<p class="note">Each indicator gets a score from -1 (hurts stocks) to +1 (helps), by fixed rules explained on its card; the big number is their average × 100. Tailwind = +20 or more, Headwind = -20 or less.</p>' +
+      '<div class="row2"><a class="chip c-p" href="claude.html?parts=macro&q=' + encodeURIComponent(ask) + '">Ask Claude about the macro picture ›</a></div></div>'
+      : '<p class="note">Loading the indicators: the Mac reads them from FRED a few at a time, so the first look takes a few minutes.</p>';
+    var h = d.history || [];
+    document.getElementById('hist').innerHTML = h.length >= 2 ? '<div class="card">' + line(h.map(function (x) { return [x.day, x.score]; }), 600, 120, '#b39dff', true) +
+      '<div class="gl"><span>' + esc(h[0].day) + '</span><span>' + esc(h[h.length - 1].day) + '</span></div></div><p class="note">One point per day, kept on the Mac.</p>'
+      : '<p class="note">The score is saved once a day; the line starts after the second day.</p>';
+    var groups = {};
+    (d.indicators || []).forEach(function (i) { (groups[i.group] = groups[i.group] || []).push(i); });
+    document.getElementById('inds').innerHTML = Object.keys(groups).map(function (g) {
+      return '<h2 style="margin-top:12px">' + esc(g) + '</h2><div class="grid">' + groups[g].map(function (i) {
+        if (i.missing || i.value == null) return '<div class="card ind"><div class="nm">' + esc(i.name) + '</div><div class="note">not loaded yet</div></div>';
+        return '<div class="card ind"><div class="nm">' + esc(i.name) + '</div><div class="row2" style="margin:2px 0;justify-content:space-between"><span class="v">' + esc(fmt(i)) + '</span>' +
+          '<span class="chip" style="color:' + col(i.s) + ';border-color:' + col(i.s) + '55">' + (i.s > 0.25 ? 'HELPS' : i.s < -0.25 ? 'HURTS' : 'NEUTRAL') + ' ' + (i.s > 0 ? '+' : '') + i.s.toFixed(2) + '</span></div>' +
+          line(i.spark, 280, 34, col(i.s)) + '<div class="rd">' + esc(i.reading) + '</div><div class="note" style="margin:4px 0 0">' + esc(i.freq) + ' · latest ' + esc(i.date) + '</div></div>';
+      }).join('') + '</div>';
+    }).join('');
+    var nm = d.news_mood || {}, items = d.news || [];
+    document.getElementById('news').innerHTML = (nm.n ? '<div class="card"><b>Headline mood: <span class="' + (nm.label === 'Upbeat' ? 'up' : nm.label === 'Gloomy' ? 'dn' : '') + '">' + esc(nm.label) + '</span></b> <span class="note">(' + nm.n + ' headlines, average ' + (nm.avg > 0 ? '+' : '') + nm.avg + ')</span>' +
+      line((nm.days || []).map(function (x) { return [x.day, x.avg]; }), 600, 50, '#7fd6ff', true) + '</div>' : '') +
+      (items.length ? '<div class="card">' + items.slice(0, 50).map(function (i) {
+        return '<div class="ev"><span class="tm">' + esc(ago(i.ts * 1000)) + '</span><span class="k">' + esc(i.topic || '') + '</span><span class="tx"><span class="dot" style="background:' + (i.s > 0 ? '#3fbf6a' : i.s < 0 ? '#c0504a' : '#4a5d72') + '"></span>' +
+          (i.link ? '<a href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.title) + '</a>' : esc(i.title)) + ' <span class="note">' + esc(i.source || '') + '</span></span></div>';
+      }).join('') + '</div>' : '<p class="note">No macro headlines yet (checked every 30 minutes).</p>') +
+      '<p class="note">Fed, inflation, jobs, growth, rates, tariffs and recession headlines from Google News plus the Fed\'s own press releases. The dot is a simple word count (green = upbeat words, red = worried words), not a judgment of the story.</p>';
+    var e = d.errors || {}, k = Object.keys(e);
+    document.getElementById('foot').innerHTML = k.length ? k.slice(0, 6).map(function (x) { return '<span class="err">' + esc(x + ': ' + e[x]) + '</span>'; }).join('<br>') : '';
+  }
+  function load() {
+    fetch('/api/plus/macro', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      if (r.status === 401) { top.location.href = '/login?next=/'; throw new Error('login'); }
+      return r.json();
+    }).then(draw).catch(function (e) { document.getElementById('when').textContent = 'Could not reach the Mac.'; });
+  }
+  load();
+  setInterval(load, 5 * 60000);
+})();
+</script>
+<script src="world-plus.js"></script>
+<script src="sentiment.js"></script>
+<script src="mobile.js"></script>
+<script src="navbar.js"></script>
+</body>
+</html>
